@@ -61,6 +61,8 @@ module "compute" {
   db_name                = var.db_name
   db_username            = var.db_username
   db_password            = var.db_password
+  app_secret_key         = var.app_secret_key
+  docker_image_uri       = var.docker_image_uri
   assets_bucket_name     = module.s3.assets_bucket_name
   ssh_public_key         = local.ssh_public_key
   tags                   = local.tags

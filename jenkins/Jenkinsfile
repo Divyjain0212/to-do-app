@@ -3,20 +3,14 @@ pipeline {
 
   environment {
     APP_DIR = 'app'
-    DOCKER_HUB_USERNAME = credentials('docker-hub-username')
     IMAGE_NAME = 'todo-app'
     IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
-    FULL_IMAGE_URI = "${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
-    LATEST_IMAGE_URI = "${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:latest"
   }
 
   stages {
     stage('Checkout') {
       steps {
         checkout scm
-        script {
-          echo "Building image: ${FULL_IMAGE_URI}"
-        }
       }
     }
 
@@ -25,7 +19,7 @@ pipeline {
         script {
           sh '''
             cd ${APP_DIR}
-            docker build -t ${FULL_IMAGE_URI} -t ${LATEST_IMAGE_URI} .
+            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest .
           '''
         }
       }
@@ -36,7 +30,7 @@ pipeline {
         script {
           sh '''
             # Run pytest inside container
-            docker run --rm ${FULL_IMAGE_URI} \
+            docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} \
               pytest tests -v --tb=short --junit-xml=/tmp/test-results.xml
           '''
         }
@@ -46,9 +40,11 @@ pipeline {
     stage('Login to Docker Hub') {
       steps {
         script {
-          sh '''
-            echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin
-          '''
+          withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
+            sh '''
+              echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USER" --password-stdin
+            '''
+          }
         }
       }
     }
@@ -56,11 +52,19 @@ pipeline {
     stage('Push to Docker Hub') {
       steps {
         script {
-          sh '''
-            docker push ${FULL_IMAGE_URI}
-            docker push ${LATEST_IMAGE_URI}
-            echo "Image pushed: ${FULL_IMAGE_URI}"
-          '''
+          withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
+            sh '''
+              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
+              LATEST_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:latest"
+
+              docker tag ${IMAGE_NAME}:${IMAGE_TAG} "$FULL_IMAGE_URI"
+              docker tag ${IMAGE_NAME}:latest "$LATEST_IMAGE_URI"
+
+              docker push "$FULL_IMAGE_URI"
+              docker push "$LATEST_IMAGE_URI"
+              echo "Image pushed: $FULL_IMAGE_URI"
+            '''
+          }
         }
       }
     }
@@ -72,13 +76,23 @@ pipeline {
       steps {
         script {
           echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
-          sh '''
-            cd terraform
-            terraform init
-            terraform apply -auto-approve \
-              -var="docker_image_uri=${FULL_IMAGE_URI}" \
-              -var-file=environments/development.tfvars
-          '''
+          withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
+            sh '''
+              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
+              if [ -z "$FULL_IMAGE_URI" ]; then
+                echo "docker_image_uri is empty; aborting deploy"
+                exit 1
+              fi
+              echo "Deploying image: $FULL_IMAGE_URI"
+
+              cd terraform
+              terraform init
+              terraform validate
+              terraform apply -auto-approve \
+                -var="docker_image_uri=$FULL_IMAGE_URI" \
+                -var-file=environments/development.tfvars
+            '''
+          }
         }
       }
     }

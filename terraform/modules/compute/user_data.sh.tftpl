@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euxo pipefail
 
-# This bootstrap is intentionally minimal; Ansible converges full host config later.
 apt-get update
-apt-get install -y python3 python3-pip
+apt-get install -y docker.io curl
+systemctl enable docker
+systemctl start docker
 
 cat >/etc/todo-app.env <<EOF
 DB_HOST=${db_host}
@@ -11,5 +12,39 @@ DB_NAME=${db_name}
 DB_USER=${db_username}
 DB_PASSWORD=${db_password}
 DB_PORT=3306
-PORT=8080
+APP_PORT=8080
+SECRET_KEY=${app_secret_key}
 EOF
+
+cat >/etc/systemd/system/todo-app.service <<EOF
+[Unit]
+Description=Todo Flask Application (Docker)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Restart=always
+RestartSec=5
+
+ExecStartPre=-/usr/bin/docker stop todo-app
+ExecStartPre=-/usr/bin/docker rm todo-app
+ExecStart=/usr/bin/docker run --rm \
+	--name todo-app \
+	-p 8080:8080 \
+	--env-file /etc/todo-app.env \
+	--health-cmd="curl -f http://localhost:8080/health || exit 1" \
+	--health-interval=30s \
+	--health-timeout=10s \
+	--health-retries=3 \
+	${docker_image_uri}
+ExecStop=/usr/bin/docker stop -t 10 todo-app
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable todo-app
+systemctl restart todo-app

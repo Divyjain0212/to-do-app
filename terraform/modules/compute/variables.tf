@@ -55,6 +55,16 @@ variable "db_password" {
   sensitive = true
 }
 
+variable "app_secret_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "docker_image_uri" {
+  type    = string
+  default = ""
+}
+
 variable "assets_bucket_name" {
   description = "Name of S3 bucket for application assets"
   type        = string

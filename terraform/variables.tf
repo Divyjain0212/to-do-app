@@ -105,6 +105,19 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "docker_image_uri" {
+  description = "Docker image URI to run on app instances"
+  type        = string
+  default     = ""
+}
+
+variable "app_secret_key" {
+  description = "Flask secret key for app instances"
+  type        = string
+  default     = "change-me-in-production"
+  sensitive   = true
+}
+
 variable "common_tags" {
   description = "Additional common tags"
   type        = map(string)
