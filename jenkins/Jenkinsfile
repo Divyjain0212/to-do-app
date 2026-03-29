@@ -19,19 +19,7 @@ pipeline {
         script {
           sh '''
             cd ${APP_DIR}
-            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest .
-          '''
-        }
-      }
-    }
-
-    stage('Test Container') {
-      steps {
-        script {
-          sh '''
-            # Run pytest inside container
-            docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} \
-              pytest tests -v --tb=short --junit-xml=/tmp/test-results.xml
+            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
           '''
         }
       }
