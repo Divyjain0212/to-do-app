@@ -1,0 +1,101 @@
+---
+- name: Configure and deploy app servers with Docker
+  hosts: app
+  become: true
+  vars:
+    docker_image_uri: "{{ lookup('env', 'DOCKER_IMAGE_URI') | default('', true) }}"
+    todo_app_env:
+      APP_PORT: "8080"
+      DB_HOST: "{{ lookup('env', 'DB_HOST') | default('', true) }}"
+      DB_NAME: "{{ lookup('env', 'DB_NAME') | default('', true) }}"
+      DB_PASSWORD: "{{ lookup('env', 'DB_PASSWORD') | default('', true) }}"
+      DB_PORT: "{{ lookup('env', 'DB_PORT') | default('3306', true) }}"
+      DB_USER: "{{ lookup('env', 'DB_USER') | default('', true) }}"
+      SECRET_KEY: "{{ lookup('env', 'SECRET_KEY') | default('change-me-in-production', true) }}"
+
+  tasks:
+    - name: Install Docker and related packages
+      apt:
+        update_cache: true
+        name:
+          - docker.io
+          - python3-docker
+        state: present
+
+    - name: Start Docker service
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+    - name: Create /etc/todo-app directory
+      file:
+        path: /etc/todo-app
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Render application environment file
+      copy:
+        dest: /etc/todo-app/app.env
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          {% for item in (todo_app_env | dict2items | sort(attribute='key')) %}
+          {{ item.key }}="{{ (item.value | string) | replace('\\', '\\\\') | replace('"', '\\"') }}"
+          {% endfor %}
+
+    - name: Pull Docker image from Docker Hub
+      docker_image:
+        name: "{{ docker_image_uri }}"
+        source: pull
+      when: docker_image_uri != ''
+
+    - name: Install systemd unit for todo-app Docker container
+      copy:
+        dest: /etc/systemd/system/todo-app.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Todo Flask Application (Docker)
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=simple
+          User=root
+          Restart=always
+          RestartSec=5
+
+          ExecStartPre=-/usr/bin/docker stop todo-app
+          ExecStartPre=-/usr/bin/docker rm todo-app
+          ExecStart=/usr/bin/docker run --rm \
+            --name todo-app \
+            -p 8080:8080 \
+            --env-file /etc/todo-app/app.env \
+            --health-cmd="curl -f http://localhost:8080/health || exit 1" \
+            --health-interval=30s \
+            --health-timeout=10s \
+            --health-retries=3 \
+            {{ docker_image_uri }}
+
+          ExecStop=/usr/bin/docker stop -t 10 todo-app
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd and restart service
+      systemd:
+        daemon_reload: true
+        name: todo-app
+        enabled: true
+        state: restarted
+

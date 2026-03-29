@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+app/.env
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# Ansible
+*.retry
+
+# IDE / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+coverage.xml
+.pytest_cache/

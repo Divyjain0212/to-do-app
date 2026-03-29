@@ -1,0 +1,192 @@
+:root {
+  --bg-a: #f1ede5;
+  --bg-b: #dfe9ee;
+  --card: #fffcf7;
+  --text: #1e2735;
+  --muted: #607081;
+  --accent: #a83e1a;
+  --accent-2: #c1643f;
+  --teal: #1f6f78;
+  --danger: #b43318;
+  --line: #d8d9d2;
+  --shadow: 0 24px 48px rgba(42, 46, 58, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Outfit", "Trebuchet MS", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 88% 10%, rgba(194, 99, 63, 0.24) 0%, rgba(194, 99, 63, 0) 34%),
+    radial-gradient(circle at 7% 90%, rgba(31, 111, 120, 0.22) 0%, rgba(31, 111, 120, 0) 40%),
+    linear-gradient(140deg, var(--bg-a), var(--bg-b));
+}
+
+.ambient {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(24px);
+}
+
+.ambient-a {
+  width: 260px;
+  height: 260px;
+  top: -70px;
+  right: -80px;
+  background: rgba(168, 62, 26, 0.18);
+}
+
+.ambient-b {
+  width: 300px;
+  height: 300px;
+  bottom: -100px;
+  left: -80px;
+  background: rgba(31, 111, 120, 0.18);
+}
+
+.landing-shell {
+  width: min(1100px, 94vw);
+  margin: 40px auto;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 18px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal);
+}
+
+.hero h1 {
+  margin: 0;
+  font-family: "Syne", "Trebuchet MS", sans-serif;
+  font-size: clamp(34px, 6vw, 54px);
+  line-height: 1.05;
+}
+
+.hero-copy {
+  color: var(--muted);
+  font-size: 17px;
+  margin: 14px 0 18px;
+}
+
+.highlights {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  color: #2f3b4a;
+}
+
+.auth h2 {
+  margin: 0;
+  font-family: "Syne", "Trebuchet MS", sans-serif;
+}
+
+.sub {
+  margin: 10px 0 14px;
+  color: var(--muted);
+}
+
+.auth-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.auth-form h3 {
+  margin: 0 0 4px;
+}
+
+.auth-form input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+}
+
+.auth-form input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.18);
+}
+
+.auth-form button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.google-btn {
+  margin-top: 10px;
+  width: 100%;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: linear-gradient(180deg, #ffffff, #f8f6f2);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.google-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 22px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.status.is-error {
+  color: var(--danger);
+}
+
+.status.is-success {
+  color: var(--teal);
+}
+
+@media (max-width: 900px) {
+  .landing-shell {
+    grid-template-columns: 1fr;
+  }
+}

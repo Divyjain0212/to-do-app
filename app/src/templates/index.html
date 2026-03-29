@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo Board Pro | Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="orb orb-a" aria-hidden="true"></div>
+  <div class="orb orb-b" aria-hidden="true"></div>
+  
+  <main class="app-shell">
+    <section class="card">
+      <header class="app-header">
+        <p class="eyebrow">Your Personal Workspace</p>
+        <h1>Todo Board Pro</h1>
+        <p>Manage tasks, priorities, categories, and exports in one place.</p>
+      </header>
+
+      <!-- Todo Panel (Main App) -->
+      <section id="todo-panel" class="todo-panel">
+        <!-- User Header with Settings -->
+        <div class="user-row">
+          <div>
+            <strong id="user-name">Signed in</strong>
+            <div id="user-email" class="meta"></div>
+          </div>
+          <div class="header-actions">
+            <button id="dark-mode-toggle" class="icon-btn" title="Toggle dark mode" type="button">🌙</button>
+            <button id="settings-btn" class="icon-btn" title="Settings" type="button">⚙️</button>
+            <button id="logout-btn" class="icon-btn" title="Logout" type="button">Logout</button>
+          </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <section class="stats-grid" aria-label="Task Overview">
+          <article class="stat-card">
+            <p>Total</p>
+            <strong id="stat-total">0</strong>
+          </article>
+          <article class="stat-card">
+            <p>Active</p>
+            <strong id="stat-active">0</strong>
+          </article>
+          <article class="stat-card">
+            <p>Completed</p>
+            <strong id="stat-completed">0</strong>
+          </article>
+        </section>
+
+        <!-- Search and Export Controls -->
+        <div class="controls-row">
+          <input id="search-input" type="text" placeholder="Search tasks..." class="search-input">
+          <div class="export-buttons">
+            <button id="export-json" class="secondary-btn" type="button" title="Export as JSON">📋 JSON</button>
+            <button id="export-csv" class="secondary-btn" type="button" title="Export as CSV">📊 CSV</button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters" role="tablist" aria-label="Task Filters">
+          <button class="filter-btn active" type="button" data-filter="all">All</button>
+          <button class="filter-btn" type="button" data-filter="active">Active</button>
+          <button class="filter-btn" type="button" data-filter="completed">Completed</button>
+          <select id="priority-filter" class="priority-filter">
+            <option value="">All Priorities</option>
+            <option value="high">High Priority</option>
+            <option value="medium">Medium Priority</option>
+            <option value="low">Low Priority</option>
+          </select>
+          <select id="category-filter" class="category-filter">
+            <option value="">All Categories</option>
+          </select>
+        </div>
+
+        <!-- Categories Section -->
+        <section class="categories-section" id="categories-section">
+          <h3>Categories</h3>
+          <div id="categories-list" class="categories-list"></div>
+          <form id="category-form" class="quick-form">
+            <input id="category-name" type="text" placeholder="New category..." maxlength="100">
+            <input id="category-color" type="color" value="#3498db" title="Category color">
+            <button type="submit">Add Category</button>
+          </form>
+        </section>
+
+        <!-- Add Todo Form -->
+        <form id="todo-form" class="todo-form">
+          <div class="form-group">
+            <input id="todo-title" name="title" type="text" placeholder="Add a task..." maxlength="255" required>
+            <select id="todo-priority" name="priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+            <select id="todo-category" name="category_id">
+              <option value="">No Category</option>
+            </select>
+            <input id="todo-due-date" name="due_date" type="date">
+            <button type="submit">Add Task</button>
+          </div>
+        </form>
+
+        <!-- Todo List -->
+        <ul id="todo-list" class="todo-list"></ul>
+
+        <!-- Shared Tasks Section -->
+        <section id="shared-section" class="shared-section hidden">
+          <h3>Tasks Shared With Me</h3>
+          <ul id="shared-list" class="todo-list"></ul>
+        </section>
+      </section>
+
+      <p id="status" class="status" aria-live="polite" role="status"></p>
+    </section>
+  </main>
+
+  <!-- Modal for Settings -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Settings</h2>
+      <form id="settings-form">
+        <div class="form-group">
+          <label>Display Name</label>
+          <input id="settings-display-name" type="text" maxlength="255">
+        </div>
+        <div class="form-group checkbox">
+          <label>
+            <input id="settings-dark-mode" type="checkbox">
+            Enable Dark Mode
+          </label>
+        </div>
+        <button type="submit">Save Settings</button>
+        <button type="button" class="secondary-btn" id="close-modal">Close</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

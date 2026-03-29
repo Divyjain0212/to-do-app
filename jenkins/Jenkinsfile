@@ -1,0 +1,104 @@
+pipeline {
+  agent any
+
+  environment {
+    APP_DIR = 'app'
+    DOCKER_HUB_USERNAME = credentials('docker-hub-username')
+    IMAGE_NAME = 'todo-app'
+    IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
+    FULL_IMAGE_URI = "${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+    LATEST_IMAGE_URI = "${DOCKER_HUB_USERNAME}/${IMAGE_NAME}:latest"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+        script {
+          echo "Building image: ${FULL_IMAGE_URI}"
+        }
+      }
+    }
+
+    stage('Build Docker Image') {
+      steps {
+        script {
+          sh '''
+            cd ${APP_DIR}
+            docker build -t ${FULL_IMAGE_URI} -t ${LATEST_IMAGE_URI} .
+          '''
+        }
+      }
+    }
+
+    stage('Test Container') {
+      steps {
+        script {
+          sh '''
+            # Run pytest inside container
+            docker run --rm ${FULL_IMAGE_URI} \
+              pytest tests -v --tb=short --junit-xml=/tmp/test-results.xml
+          '''
+        }
+      }
+    }
+
+    stage('Login to Docker Hub') {
+      steps {
+        script {
+          sh '''
+            echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin
+          '''
+        }
+      }
+    }
+
+    stage('Push to Docker Hub') {
+      steps {
+        script {
+          sh '''
+            docker push ${FULL_IMAGE_URI}
+            docker push ${LATEST_IMAGE_URI}
+            echo "Image pushed: ${FULL_IMAGE_URI}"
+          '''
+        }
+      }
+    }
+
+    stage('Rolling Deploy') {
+      when {
+        expression { return env.DEPLOY_STRATEGY == null || env.DEPLOY_STRATEGY == 'rolling' }
+      }
+      steps {
+        script {
+          echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
+          sh '''
+            cd terraform
+            terraform init
+            terraform apply -auto-approve \
+              -var="docker_image_uri=${FULL_IMAGE_URI}" \
+              -var-file=environments/development.tfvars
+          '''
+        }
+      }
+    }
+
+    stage('Blue Green Deploy') {
+      when {
+        expression { return env.DEPLOY_STRATEGY == 'bluegreen' }
+      }
+      steps {
+        echo 'Provision green capacity and shift ALB traffic after health checks.'
+      }
+    }
+  }
+
+  post {
+    failure {
+      echo 'Deployment failed. Trigger rollback routine and notify incident channel.'
+    }
+    success {
+      echo 'Pipeline completed successfully.'
+    }
+  }
+}

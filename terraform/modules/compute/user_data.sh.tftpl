@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euxo pipefail
+
+# This bootstrap is intentionally minimal; Ansible converges full host config later.
+apt-get update
+apt-get install -y python3 python3-pip
+
+cat >/etc/todo-app.env <<EOF
+DB_HOST=${db_host}
+DB_NAME=${db_name}
+DB_USER=${db_username}
+DB_PASSWORD=${db_password}
+DB_PORT=3306
+PORT=8080
+EOF
