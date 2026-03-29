@@ -5,6 +5,7 @@ pipeline {
     APP_DIR = 'app'
     IMAGE_NAME = 'todo-app'
     IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
+    AWS_CREDS = credentials('awsCred')
   }
 
   stages {
@@ -65,8 +66,7 @@ pipeline {
         script {
           echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
           withCredentials([
-            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
-            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
+            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')
           ]) {
             sh '''
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
@@ -75,8 +75,15 @@ pipeline {
                 exit 1
               fi
               echo "Deploying image: $FULL_IMAGE_URI"
+              export AWS_ACCESS_KEY_ID="$AWS_CREDS_USR"
+              export AWS_SECRET_ACCESS_KEY="$AWS_CREDS_PSW"
               export AWS_DEFAULT_REGION=ap-south-1
               export AWS_REGION=ap-south-1
+              if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+                echo "AWS credentials were not injected from awsCred"
+                exit 1
+              fi
+              echo "AWS credentials injected from awsCred"
               aws sts get-caller-identity >/dev/null
 
               cd terraform
