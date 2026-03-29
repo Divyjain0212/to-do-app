@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
 from pythonjsonlogger import jsonlogger
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, create_engine, inspect, select, text, update
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -193,7 +193,13 @@ def create_app() -> Flask:
     app.config["GOOGLE_REDIRECT_URI"] = os.getenv("GOOGLE_REDIRECT_URI", "")
 
     app.engine = _create_db_engine(app.config["SQLALCHEMY_DATABASE_URL"])
-    Base.metadata.create_all(app.engine)
+    try:
+        Base.metadata.create_all(app.engine)
+    except OperationalError as exc:
+        # SQLite can hit a startup race when multiple gunicorn workers call create_all.
+        # If the table was created by another worker just before this statement, continue.
+        if "already exists" not in str(exc).lower():
+            raise
     _ensure_schema_compatibility(app.engine)
 
     oauth = OAuth(app) if OAuth is not None else None
@@ -404,7 +410,8 @@ def create_app() -> Flask:
             return jsonify({"error": "google auth is not configured"}), 400
 
         dynamic_redirect_uri = url_for("auth_google_callback", _external=True)
-        configured_redirect_uri = app.config["GOOGLE_REDIRECT_URI"]
+        configured_redirect_uri = (app.config["GOOGLE_REDIRECT_URI"] or "").strip()
+        loopback_hosts = {"127.0.0.1", "localhost", "::1"}
 
         # Enforce one canonical OAuth host from GOOGLE_REDIRECT_URI so the callback
         # always lands on the same host where session state was created.
@@ -426,7 +433,15 @@ def create_app() -> Flask:
                     )
                     return jsonify({"error": "google auth redirect uri is misconfigured"}), 500
 
-                if configured.scheme != current.scheme or configured.netloc != current.netloc:
+                # For local development, prefer current loopback host+port to avoid
+                # forcing stale values (for example 8081 after moving to 8000).
+                if (
+                    configured.hostname in loopback_hosts
+                    and current.hostname in loopback_hosts
+                    and configured.scheme == current.scheme
+                ):
+                    redirect_uri = dynamic_redirect_uri
+                elif configured.scheme != current.scheme or configured.netloc != current.netloc:
                     canonical_login_url = f"{configured.scheme}://{configured.netloc}{url_for('auth_google_login')}"
                     app.logger.info(
                         "Redirecting to canonical OAuth host",
@@ -437,8 +452,8 @@ def create_app() -> Flask:
                         },
                     )
                     return redirect(canonical_login_url)
-
-                redirect_uri = configured_redirect_uri
+                else:
+                    redirect_uri = configured_redirect_uri
             except Exception as exc:
                 app.logger.warning(
                     "Invalid configured Google redirect URI; using dynamic callback URL",
@@ -1027,4 +1042,4 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     application = create_app()
-    application.run(host="0.0.0.0", port=int(os.getenv("PORT", "8081")))
+    application.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
