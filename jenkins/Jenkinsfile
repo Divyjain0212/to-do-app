@@ -64,7 +64,10 @@ pipeline {
       steps {
         script {
           echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
-          withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
+          withCredentials([
+            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
+            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
+          ]) {
             sh '''
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
               if [ -z "$FULL_IMAGE_URI" ]; then
@@ -72,6 +75,9 @@ pipeline {
                 exit 1
               fi
               echo "Deploying image: $FULL_IMAGE_URI"
+              export AWS_DEFAULT_REGION=ap-south-1
+              export AWS_REGION=ap-south-1
+              aws sts get-caller-identity >/dev/null
 
               cd terraform
               terraform init
