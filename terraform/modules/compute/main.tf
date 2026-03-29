@@ -85,6 +85,9 @@ resource "aws_launch_template" "app" {
     db_username      = var.db_username
     db_password      = var.db_password
     app_secret_key   = var.app_secret_key
+    google_client_id = var.google_client_id
+    google_client_secret = var.google_client_secret
+    google_redirect_uri  = var.google_redirect_uri
     docker_image_uri = var.docker_image_uri
   }))
 

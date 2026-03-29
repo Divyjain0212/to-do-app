@@ -8,6 +8,8 @@ locals {
   # Read SSH public key from ansible folder if it exists
   ssh_public_key = try(file("${path.root}/../ansible/linux-key.pub"), "")
 
+  oauth_redirect_uri = var.google_redirect_uri != "" ? var.google_redirect_uri : "http://${module.alb.alb_dns_name}/auth/google/callback"
+
   tags = merge(
     {
       Project     = var.project_name
@@ -62,6 +64,9 @@ module "compute" {
   db_username            = var.db_username
   db_password            = var.db_password
   app_secret_key         = var.app_secret_key
+  google_client_id       = var.google_client_id
+  google_client_secret   = var.google_client_secret
+  google_redirect_uri    = local.oauth_redirect_uri
   docker_image_uri       = var.docker_image_uri
   assets_bucket_name     = module.s3.assets_bucket_name
   ssh_public_key         = local.ssh_public_key

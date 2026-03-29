@@ -60,6 +60,22 @@ variable "app_secret_key" {
   sensitive = true
 }
 
+variable "google_client_id" {
+  type    = string
+  default = ""
+}
+
+variable "google_client_secret" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "google_redirect_uri" {
+  type    = string
+  default = ""
+}
+
 variable "docker_image_uri" {
   type    = string
   default = ""
