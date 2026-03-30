@@ -61,36 +61,49 @@ pipeline {
       steps {
         script {
           echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
-          withCredentials([
-            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
-            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
-          ]) {
-            sh '''
-              set -eux
-              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-              if [ -z "$FULL_IMAGE_URI" ]; then
-                echo "docker_image_uri is empty; aborting deploy"
-                exit 1
-              fi
-              echo "Deploying image: $FULL_IMAGE_URI"
-              export AWS_DEFAULT_REGION=ap-south-1
-              export AWS_REGION=ap-south-1
-              if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-                echo "AWS credentials were not injected from awsCred"
-                exit 1
-              fi
-              echo "AWS credentials injected from awsCred"
-              command -v aws
-              command -v terraform
-              aws sts get-caller-identity >/dev/null
+          def deployCmd = '''
+            set -eux
+            FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
+            if [ -z "$FULL_IMAGE_URI" ]; then
+              echo "docker_image_uri is empty; aborting deploy"
+              exit 1
+            fi
+            echo "Deploying image: $FULL_IMAGE_URI"
+            export AWS_DEFAULT_REGION=ap-south-1
+            export AWS_REGION=ap-south-1
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "AWS credentials were not injected from awsCred"
+              exit 1
+            fi
+            echo "AWS credentials injected from awsCred"
+            command -v terraform
 
-              cd terraform
-              terraform init
-              terraform validate
-              terraform apply -auto-approve \
-                -var="docker_image_uri=$FULL_IMAGE_URI" \
-                -var-file=environments/development.tfvars
-            '''
+            cd terraform
+            terraform init
+            terraform validate
+            terraform apply -auto-approve \
+              -var="docker_image_uri=$FULL_IMAGE_URI" \
+              -var-file=environments/development.tfvars
+          '''
+
+          withCredentials([
+            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')
+          ]) {
+            try {
+              echo 'Trying awsCred as AWS Credentials type'
+              withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'awsCred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+              ]) {
+                sh deployCmd
+              }
+            } catch (ignored) {
+              echo 'Falling back: trying awsCred as Username with password'
+              withCredentials([
+                usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
+              ]) {
+                sh deployCmd
+              }
+            }
           }
         }
       }
