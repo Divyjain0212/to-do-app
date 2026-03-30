@@ -4,7 +4,7 @@ pipeline {
   environment {
     APP_DIR = 'app'
     IMAGE_NAME = 'todo-app'
-    IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
+    IMAGE_TAG = "${BUILD_NUMBER}"
   }
 
   stages {
@@ -43,13 +43,10 @@ pipeline {
           withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
             sh '''
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-              LATEST_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:latest"
 
               docker tag ${IMAGE_NAME}:${IMAGE_TAG} "$FULL_IMAGE_URI"
-              docker tag ${IMAGE_NAME}:latest "$LATEST_IMAGE_URI"
 
               docker push "$FULL_IMAGE_URI"
-              docker push "$LATEST_IMAGE_URI"
               echo "Image pushed: $FULL_IMAGE_URI"
             '''
           }

@@ -2,7 +2,7 @@
 
 ## Topology
 - Internet traffic enters Application Load Balancer in public subnets.
-- Flask application instances run in an Auto Scaling Group in private app subnets.
+- Flask application instances run in an Auto Scaling Group in public app subnets.
 - RDS MySQL runs in private DB subnets with restricted access.
 
 ## Availability and Resilience
