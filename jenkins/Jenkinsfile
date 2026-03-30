@@ -63,9 +63,10 @@ pipeline {
           echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
           withCredentials([
             usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
-            [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'awsCred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
           ]) {
             sh '''
+              set -eux
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
               if [ -z "$FULL_IMAGE_URI" ]; then
                 echo "docker_image_uri is empty; aborting deploy"
@@ -79,6 +80,8 @@ pipeline {
                 exit 1
               fi
               echo "AWS credentials injected from awsCred"
+              command -v aws
+              command -v terraform
               aws sts get-caller-identity >/dev/null
 
               cd terraform
