@@ -82,6 +82,9 @@ pipeline {
             terraform -version
 
             cd terraform
+            export TF_DATA_DIR="$PWD/.terraform-jenkins"
+            rm -rf "$TF_DATA_DIR"
+            mkdir -p "$TF_DATA_DIR"
             rm -f terraform.tfstate terraform.tfstate.backup
             terraform init -reconfigure -input=false
             terraform validate
