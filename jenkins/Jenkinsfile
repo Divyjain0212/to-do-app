@@ -76,14 +76,45 @@ pipeline {
               exit 1
             fi
             echo "AWS credentials injected from awsCred"
-            command -v terraform
+            if command -v terraform >/dev/null 2>&1; then
+              echo "Using local terraform binary"
+              cd terraform
+              terraform init
+              terraform validate
+              terraform apply -auto-approve \
+                -var="docker_image_uri=$FULL_IMAGE_URI" \
+                -var-file=environments/development.tfvars
+            else
+              echo "Local terraform not found; using hashicorp/terraform Docker image"
+              docker run --rm \
+                -v "$PWD/terraform:/workspace" \
+                -w /workspace \
+                -e AWS_ACCESS_KEY_ID \
+                -e AWS_SECRET_ACCESS_KEY \
+                -e AWS_DEFAULT_REGION \
+                -e AWS_REGION \
+                hashicorp/terraform:1.6.6 init
 
-            cd terraform
-            terraform init
-            terraform validate
-            terraform apply -auto-approve \
-              -var="docker_image_uri=$FULL_IMAGE_URI" \
-              -var-file=environments/development.tfvars
+              docker run --rm \
+                -v "$PWD/terraform:/workspace" \
+                -w /workspace \
+                -e AWS_ACCESS_KEY_ID \
+                -e AWS_SECRET_ACCESS_KEY \
+                -e AWS_DEFAULT_REGION \
+                -e AWS_REGION \
+                hashicorp/terraform:1.6.6 validate
+
+              docker run --rm \
+                -v "$PWD/terraform:/workspace" \
+                -w /workspace \
+                -e AWS_ACCESS_KEY_ID \
+                -e AWS_SECRET_ACCESS_KEY \
+                -e AWS_DEFAULT_REGION \
+                -e AWS_REGION \
+                hashicorp/terraform:1.6.6 apply -auto-approve \
+                -var="docker_image_uri=$FULL_IMAGE_URI" \
+                -var-file=environments/development.tfvars
+            fi
           '''
 
           withCredentials([
