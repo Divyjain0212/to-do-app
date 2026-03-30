@@ -4,7 +4,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN sudo apt update
+RUN apt update
 
 # Copy requirements first for better caching
 COPY requirements.txt .
