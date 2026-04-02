@@ -15,7 +15,7 @@ if ! command -v aws >/dev/null 2>&1; then
   AWS_ZIP="/tmp/awscliv2.zip"
   AWS_TMP_DIR="/tmp/awscliv2"
 
-  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o "$AWS_ZIP"
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$${AWS_ARCH}.zip" -o "$AWS_ZIP"
   rm -rf "$AWS_TMP_DIR"
   unzip -q "$AWS_ZIP" -d "$AWS_TMP_DIR"
   "$AWS_TMP_DIR/aws/install" --update
