@@ -7,7 +7,7 @@ pipeline {
     IMAGE_TAG = "${BUILD_NUMBER}"
     CONFIG_S3_PREFIX = "runtime/build-${BUILD_NUMBER}"
     AWS_REGION = 'ap-south-1'
-    TERRAFORM_BIN = '/usr/bin/terraform'
+    TERRAFORM_BIN = '/usr/local/bin/terraform'
     AWS_CLI_BIN = '/usr/local/bin/aws'
   }
 
@@ -46,6 +46,18 @@ pipeline {
               export AWS_DEFAULT_REGION=$AWS_REGION
               TF_BIN="$TERRAFORM_BIN"
               AWS_BIN="$AWS_CLI_BIN"
+
+              if [ ! -x "$TF_BIN" ] && [ -x "/usr/bin/terraform" ]; then
+                TF_BIN="/usr/bin/terraform"
+              fi
+
+              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/bin/aws" ]; then
+                AWS_BIN="/usr/bin/aws"
+              fi
+
+              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/local/aws-cli/v2/current/bin/aws" ]; then
+                AWS_BIN="/usr/local/aws-cli/v2/current/bin/aws"
+              fi
 
               if [ ! -x "$TF_BIN" ]; then
                 echo "ERROR: terraform binary is not executable at $TF_BIN"
@@ -96,6 +108,18 @@ pipeline {
               export AWS_DEFAULT_REGION=$AWS_REGION
               TF_BIN="$TERRAFORM_BIN"
               AWS_BIN="$AWS_CLI_BIN"
+
+              if [ ! -x "$TF_BIN" ] && [ -x "/usr/bin/terraform" ]; then
+                TF_BIN="/usr/bin/terraform"
+              fi
+
+              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/bin/aws" ]; then
+                AWS_BIN="/usr/bin/aws"
+              fi
+
+              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/local/aws-cli/v2/current/bin/aws" ]; then
+                AWS_BIN="/usr/local/aws-cli/v2/current/bin/aws"
+              fi
 
               if [ ! -x "$TF_BIN" ]; then
                 echo "ERROR: terraform binary is not executable at $TF_BIN"
