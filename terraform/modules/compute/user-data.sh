@@ -66,9 +66,14 @@ chmod 600 "$ENV_FILE"
 # Download Ansible playbook from S3
 mkdir -p /opt/myapp
 PLAYBOOK_FILE="/opt/myapp/site.yml"
-aws s3 cp "s3://${assets_bucket_name}/${config_s3_prefix}/site.yml" "$PLAYBOOK_FILE" || true
+aws s3 cp "s3://${assets_bucket_name}/${config_s3_prefix}/site.yml" "$PLAYBOOK_FILE"
 
 # Run Ansible playbook
 if [ -f "$PLAYBOOK_FILE" ]; then
-  ansible-playbook -i "localhost," -c local "$PLAYBOOK_FILE" -e "target_hosts=localhost"
+  ansible-playbook \
+    -i "localhost," \
+    -c local \
+    "$PLAYBOOK_FILE" \
+    -e "target_hosts=localhost" \
+    -e "docker_image_uri=${docker_image_uri}"
 fi
