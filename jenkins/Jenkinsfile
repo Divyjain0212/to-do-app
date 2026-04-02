@@ -197,7 +197,7 @@ pipeline {
                   -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
                   -var-file=environments/development.tfvars
                 echo "Rolling deployment successful"
-              fia
+              fi
             '''
           }
         }
