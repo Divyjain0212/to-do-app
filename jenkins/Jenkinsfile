@@ -89,7 +89,8 @@ env_values = {
 }
 
 lines = [f"{key}={value}" for key, value in env_values.items()]
-Path("app/.env").write_text("\n".join(lines) + "\n")
+newline = chr(10)
+Path("app/.env").write_text(newline.join(lines) + newline)
 Path("app/.env").chmod(0o600)
 PY
 
