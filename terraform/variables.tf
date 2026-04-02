@@ -111,6 +111,18 @@ variable "docker_image_uri" {
   default     = ""
 }
 
+variable "config_s3_prefix" {
+  description = "S3 key prefix containing deployment config artifacts"
+  type        = string
+  default     = "runtime/current"
+}
+
+variable "active_environment" {
+  description = "Active deployment slot for blue-green style rollouts"
+  type        = string
+  default     = "blue"
+}
+
 variable "app_secret_key" {
   description = "Flask secret key for app instances"
   type        = string
@@ -165,6 +177,12 @@ variable "enable_assets_bucket" {
   description = "Enable S3 bucket for application assets and media"
   type        = bool
   default     = true
+}
+
+variable "s3_force_destroy" {
+  description = "Allow Terraform to destroy non-empty S3 buckets (recommended only for dev)"
+  type        = bool
+  default     = false
 }
 
 variable "log_retention_days" {

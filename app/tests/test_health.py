@@ -1,9 +1,6 @@
 import os
-
 import pytest
-
 from src.app import create_app
-
 
 @pytest.fixture
 def client(monkeypatch):
@@ -18,7 +15,6 @@ def client(monkeypatch):
 
     with app.test_client() as test_client:
         yield test_client
-
 
 def test_health_endpoint_returns_json(client):
     response = client.get("/health")

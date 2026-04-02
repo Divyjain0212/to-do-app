@@ -5,6 +5,8 @@ pipeline {
     APP_DIR = 'app'
     IMAGE_NAME = 'todo-app'
     IMAGE_TAG = "${BUILD_NUMBER}"
+    CONFIG_S3_PREFIX = "runtime/build-${BUILD_NUMBER}"
+    AWS_REGION = 'ap-south-1'
   }
 
   stages {
@@ -14,38 +16,17 @@ pipeline {
       }
     }
 
-    stage('Build Docker Image') {
-      steps {
-        script {
-          sh '''
-            cd ${APP_DIR}
-            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-          '''
-        }
-      }
-    }
-
-    stage('Login to Docker Hub') {
+    stage('Build & Push Docker Image') {
       steps {
         script {
           withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
             sh '''
-              echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USER" --password-stdin
-            '''
-          }
-        }
-      }
-    }
-
-    stage('Push to Docker Hub') {
-      steps {
-        script {
-          withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
-            sh '''
+              cd ${APP_DIR}
+              docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+              
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-
+              echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USER" --password-stdin
               docker tag ${IMAGE_NAME}:${IMAGE_TAG} "$FULL_IMAGE_URI"
-
               docker push "$FULL_IMAGE_URI"
               echo "Image pushed: $FULL_IMAGE_URI"
             '''
@@ -54,84 +35,106 @@ pipeline {
       }
     }
 
-    stage('Rolling Deploy') {
-      when {
-        expression { return env.DEPLOY_STRATEGY == null || env.DEPLOY_STRATEGY == 'rolling' }
-      }
+    stage('Upload Config to S3') {
       steps {
         script {
-          echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
-          def deployCmd = '''
-            set -eux
-            export TF_IN_AUTOMATION=1
-            export TF_INPUT=0
-            FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-            if [ -z "$FULL_IMAGE_URI" ]; then
-              echo "docker_image_uri is empty; aborting deploy"
-              exit 1
-            fi
-            echo "Deploying image: $FULL_IMAGE_URI"
-            export AWS_DEFAULT_REGION=ap-south-1
-            export AWS_REGION=ap-south-1
-            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-              echo "AWS credentials were not injected from awsCred"
-              exit 1
-            fi
-            echo "AWS credentials injected from awsCred"
-            command -v terraform
-            terraform -version
+          withCredentials([usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+            sh '''
+              set -e
+              export AWS_DEFAULT_REGION=$AWS_REGION
 
-            cd terraform
-            export TF_DATA_DIR="$PWD/.terraform-jenkins"
-            rm -rf "$TF_DATA_DIR"
-            mkdir -p "$TF_DATA_DIR"
-            rm -f terraform.tfstate terraform.tfstate.backup
-            terraform init -reconfigure -input=false
-            terraform validate
-            terraform apply -auto-approve \
-              -var="docker_image_uri=$FULL_IMAGE_URI" \
-              -var-file=environments/development.tfvars
-          '''
+              cd terraform
+              terraform init -reconfigure -input=false
+              terraform apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
+              CONFIG_BUCKET=$(terraform output -raw assets_bucket_name)
 
-          withCredentials([
-            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')
-          ]) {
-            try {
-              echo 'Trying awsCred as AWS Credentials type'
-              withCredentials([
-                [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'awsCred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
-              ]) {
-                sh deployCmd
-              }
-            } catch (ignored) {
-              echo 'Falling back: trying awsCred as Username with password'
-              withCredentials([
-                usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
-              ]) {
-                sh deployCmd
-              }
-            }
+              if [ -z "$CONFIG_BUCKET" ] || [ "$CONFIG_BUCKET" = "null" ]; then
+                echo "ERROR: assets bucket output is empty"
+                exit 1
+              fi
+              cd ..
+
+              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
+              aws s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
+
+              aws s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
+            '''
           }
         }
       }
     }
 
-    stage('Blue Green Deploy') {
-      when {
-        expression { return env.DEPLOY_STRATEGY == 'bluegreen' }
-      }
+    stage('Blue-green Deployment with Terraform') {
       steps {
-        echo 'Provision green capacity and shift ALB traffic after health checks.'
+        script {
+          withCredentials([
+            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
+            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
+          ]) {
+            sh '''
+              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
+              echo "Deploying image: $FULL_IMAGE_URI"
+              
+              cd terraform
+              terraform init -reconfigure -input=false
+              terraform validate
+              
+              # Get current active environment (blue or green)
+              CURRENT_ENV=$(terraform output -raw active_environment 2>/dev/null || echo "blue")
+              if [ "$CURRENT_ENV" = "blue" ]; then
+                DEPLOY_ENV="green"
+              else
+                DEPLOY_ENV="blue"
+              fi
+              
+              echo "Current environment: $CURRENT_ENV"
+              echo "Deploying to: $DEPLOY_ENV"
+              
+              # Deploy to new environment
+              terraform apply -auto-approve \
+                -var="docker_image_uri=$FULL_IMAGE_URI" \
+                -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
+                -var="active_environment=$DEPLOY_ENV" \
+                -var-file=environments/development.tfvars
+              
+              # Get new environment details
+              NEW_TARGET_GROUP=$(terraform output -raw ${DEPLOY_ENV}_target_group_arn 2>/dev/null || echo "")
+              
+              if [ -z "$NEW_TARGET_GROUP" ]; then
+                echo "ERROR: Could not retrieve target group for $DEPLOY_ENV environment"
+                exit 1
+              fi
+              
+              echo "Waiting for instances to be healthy..."
+              sleep 30
+              
+              # Switch ALB listener to new environment
+              ALB_LISTENER_ARN=$(terraform output -raw alb_listener_arn 2>/dev/null || echo "")
+              
+              if [ -z "$ALB_LISTENER_ARN" ]; then
+                echo "ERROR: Could not retrieve ALB listener ARN"
+                exit 1
+              fi
+              
+              aws elbv2 modify-listener \
+                --listener-arn "$ALB_LISTENER_ARN" \
+                --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
+              
+              echo "Blue-green deployment successful!"
+              echo "Active environment switched to: $DEPLOY_ENV"
+            '''
+          }
+        }
       }
     }
   }
 
   post {
     failure {
-      echo 'Deployment failed. Trigger rollback routine and notify incident channel.'
+      echo 'Deployment failed'
     }
     success {
-      echo 'Pipeline completed successfully.'
+      echo 'Deployment successful'
     }
   }
 }

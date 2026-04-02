@@ -17,3 +17,7 @@ output "target_group_arn" {
 output "target_group_arn_suffix" {
   value = aws_lb_target_group.app.arn_suffix
 }
+
+output "alb_listener_arn" {
+  value = aws_lb_listener.http.arn
+}

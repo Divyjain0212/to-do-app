@@ -28,6 +28,12 @@
 - Validate EC2 instance profile and attached policies.
 - Confirm app runtime credentials and service permissions.
 
+### Systemd Service Failed to Start
+- Check systemd journal: `journalctl -u todo-app -n 50`
+- Verify `/etc/todo-app/app.env` exists and has correct permissions (600).
+- Confirm Docker image URI is accessible and correctly tagged.
+- Validate S3 bucket and configuration files were downloaded successfully.
+
 ## 3. Rollback Procedures
 1. Rolling deploy rollback:
 - Cancel instance refresh.
@@ -46,18 +52,26 @@
 
 ## 6. Operational References
 - Terraform: `terraform/`
-- Ansible: `ansible/playbooks/site.yml`
+- Instance Initialization: `terraform/modules/compute/user-data.sh`
+- Ansible Playbook: `ansible/playbooks/site.yml`
 - Jenkins Pipeline: `jenkins/Jenkinsfile`
 - Dashboard Spec: `terraform/modules/monitoring/cloudwatch-dashboard.json`
+- Systemd Service: `/etc/systemd/system/todo-app.service` (auto-created at boot)
 
-## 7. Ansible Deployment (Manual IP Allocation)
-1. After `terraform apply`, identify private IPs of running app instances in the ASG.
-2. Add those private IPs under `[app]` in `ansible/inventory.ini` with `ansible_user=ubuntu`.
-3. Set app runtime secrets/DB settings as environment variables before run:
-- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `SECRET_KEY`
-4. Run deployment:
-- `cd ansible`
-- `ansible-playbook playbooks/site.yml`
+## 7. Application Deployment (Automated via User-Data)
+Deployment is fully automated through the EC2 user-data script:
+1. Script downloads config files (`.env`, `nginx.conf`, Ansible playbook) from S3.
+2. Generates fallback `.env` from Terraform variables if S3 retrieval fails.
+3. Runs Ansible playbook to converge system state.
+4. Creates and starts `todo-app` systemd service.
+5. Docker container auto-restarts on failure (with health checks).
+
+**Manual Troubleshooting:**
+- SSH to instance and check: `sudo systemctl status todo-app`
+- View logs: `sudo journalctl -u todo-app -f`
+- Re-run playbook: `cd /opt/myapp && ansible-playbook -i "localhost," -c local site.yml`
+- Manually restart service: `sudo systemctl restart todo-app`
 
 Notes:
-- Update `ansible/inventory.ini` whenever instance private IPs change.
+- Ensure S3 bucket and Terraform variables are correctly configured.
+- User-data script runs only once at instance launch; changes require new instance or manual playbook execution.

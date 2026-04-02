@@ -2,6 +2,7 @@
 resource "aws_s3_bucket" "logs" {
   count  = var.enable_logging_bucket ? 1 : 0
   bucket = "${var.project_name}-${var.environment}-logs-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.force_destroy
 
   tags = merge(
     var.tags,
@@ -66,6 +67,7 @@ resource "aws_s3_bucket_public_access_block" "logs" {
 resource "aws_s3_bucket" "backups" {
   count  = var.enable_backups_bucket ? 1 : 0
   bucket = "${var.project_name}-${var.environment}-backups-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.force_destroy
 
   tags = merge(
     var.tags,
@@ -130,6 +132,7 @@ resource "aws_s3_bucket_public_access_block" "backups" {
 resource "aws_s3_bucket" "assets" {
   count  = var.enable_assets_bucket ? 1 : 0
   bucket = "${var.project_name}-${var.environment}-assets-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.force_destroy
 
   tags = merge(
     var.tags,

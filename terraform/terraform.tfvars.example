@@ -1,6 +1,7 @@
 aws_region            = "us-east-1"
 project_name          = "todo-capstone"
 environment           = "dev"
+active_environment    = "blue"
 app_ami_id            = "ami-0123456789abcdef0"
 db_password           = "REPLACE_ME_STRONG_PASSWORD"
 allowed_ingress_cidr  = "0.0.0.0/0"

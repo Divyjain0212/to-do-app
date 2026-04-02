@@ -79,7 +79,7 @@ resource "aws_launch_template" "app" {
 
   vpc_security_group_ids = [var.app_security_group_id]
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
+  user_data = base64encode(templatefile("${path.module}/user-data.sh", {
     db_host          = var.db_host
     db_name          = var.db_name
     db_username      = var.db_username
@@ -89,6 +89,8 @@ resource "aws_launch_template" "app" {
     google_client_secret = var.google_client_secret
     google_redirect_uri  = var.google_redirect_uri
     docker_image_uri = var.docker_image_uri
+    assets_bucket_name = var.assets_bucket_name
+    config_s3_prefix = var.config_s3_prefix
   }))
 
   tag_specifications {

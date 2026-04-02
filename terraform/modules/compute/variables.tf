@@ -81,6 +81,12 @@ variable "docker_image_uri" {
   default = ""
 }
 
+variable "config_s3_prefix" {
+  description = "S3 key prefix where runtime config files are uploaded"
+  type        = string
+  default     = "runtime/current"
+}
+
 variable "assets_bucket_name" {
   description = "Name of S3 bucket for application assets"
   type        = string

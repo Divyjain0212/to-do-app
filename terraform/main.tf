@@ -53,7 +53,7 @@ module "compute" {
   environment            = var.environment
   ami_id                 = var.app_ami_id
   instance_type          = var.app_instance_type
-  private_app_subnet_ids = module.network.public_subnet_ids
+  private_app_subnet_ids = module.network.private_app_subnet_ids
   app_security_group_id  = module.network.app_security_group_id
   target_group_arn       = module.alb.target_group_arn
   min_size               = var.app_min_size
@@ -68,6 +68,7 @@ module "compute" {
   google_client_secret   = var.google_client_secret
   google_redirect_uri    = local.oauth_redirect_uri
   docker_image_uri       = var.docker_image_uri
+  config_s3_prefix       = var.config_s3_prefix
   assets_bucket_name     = module.s3.assets_bucket_name
   ssh_public_key         = local.ssh_public_key
   tags                   = local.tags
@@ -111,6 +112,7 @@ module "s3" {
   enable_logging_bucket = var.enable_logging_bucket
   enable_backups_bucket = var.enable_backups_bucket
   enable_assets_bucket  = var.enable_assets_bucket
+  force_destroy         = var.s3_force_destroy
   log_retention_days    = var.log_retention_days
   backup_retention_days = var.backup_retention_days
   tags                  = local.tags

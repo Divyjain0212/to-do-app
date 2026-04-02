@@ -22,7 +22,7 @@ db_username       = "todoadmin"
 db_password       = "div#321jain"
 google_client_id  = "863075274301-c04a44e8dbbkuaej1skj2n4j8igaoc5p.apps.googleusercontent.com"
 google_client_secret = "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"
-google_redirect_uri  = ""
+google_redirect_uri  = "http://todo-app.divyjain.in/auth/google/callback"
 
 # Optional: set to receive CloudWatch alarm emails
 alert_email = "divyjain07291@gmail.com"
@@ -31,6 +31,7 @@ alert_email = "divyjain07291@gmail.com"
 enable_logging_bucket = true
 enable_backups_bucket = true
 enable_assets_bucket  = true
+s3_force_destroy      = true
 log_retention_days    = 90
 backup_retention_days = 7
 

@@ -38,6 +38,12 @@ variable "backup_retention_days" {
   default     = 30
 }
 
+variable "force_destroy" {
+  description = "Allow Terraform to delete non-empty versioned buckets during destroy"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

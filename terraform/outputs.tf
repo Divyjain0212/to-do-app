@@ -37,3 +37,23 @@ output "assets_bucket_url" {
   description = "S3 URL for assets bucket"
   value       = module.s3.assets_bucket_url
 }
+
+output "active_environment" {
+  description = "Current active deployment environment (blue/green)"
+  value       = var.active_environment
+}
+
+output "blue_target_group_arn" {
+  description = "Target group ARN for blue environment"
+  value       = module.alb.target_group_arn
+}
+
+output "green_target_group_arn" {
+  description = "Target group ARN for green environment"
+  value       = module.alb.target_group_arn
+}
+
+output "alb_listener_arn" {
+  description = "ALB listener ARN used for traffic switching"
+  value       = module.alb.alb_listener_arn
+}
