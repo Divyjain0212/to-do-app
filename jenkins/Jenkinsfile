@@ -42,6 +42,8 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
+              export PATH="$WORKSPACE/.bin:$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin:$PATH"
+              hash -r
 
               TF_BIN="$(command -v terraform || true)"
               if [ -z "$TF_BIN" ]; then
@@ -95,7 +97,7 @@ PY
 
               AWS_BIN="$(command -v aws || true)"
               if [ -z "$AWS_BIN" ]; then
-                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws; do
+                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws /usr/local/aws-cli/v2/current/bin/aws; do
                   if [ -x "$CANDIDATE" ]; then
                     AWS_BIN="$CANDIDATE"
                     break
@@ -104,12 +106,42 @@ PY
               fi
 
               if [ -z "$AWS_BIN" ]; then
-                if command -v python3 >/dev/null 2>&1; then
-                  python3 -m pip --version >/dev/null 2>&1 || python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
-                  python3 -m pip install --user --upgrade awscli >/dev/null 2>&1
-                  export PATH="$HOME/.local/bin:$PATH"
-                  AWS_BIN="$(command -v aws || true)"
+                AWS_BIN_DIR="${WORKSPACE}/.bin"
+                AWS_INSTALL_ROOT="${WORKSPACE}/.aws-cli"
+                AWS_INSTALL_ZIP="awscliv2.zip"
+                AWS_INSTALL_TMP="/tmp/awscliv2"
+                mkdir -p "$AWS_BIN_DIR"
+                rm -rf "$AWS_INSTALL_TMP"
+                mkdir -p "$AWS_INSTALL_TMP"
+
+                echo "AWS CLI not found in PATH, downloading AWS CLI v2 to workspace..."
+                if command -v curl >/dev/null 2>&1; then
+                  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/${AWS_INSTALL_ZIP}"
+                elif command -v wget >/dev/null 2>&1; then
+                  wget -q "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O "/tmp/${AWS_INSTALL_ZIP}"
+                else
+                  echo "ERROR: curl or wget is required to download AWS CLI"
+                  exit 1
                 fi
+
+                if command -v unzip >/dev/null 2>&1; then
+                  unzip -oq "/tmp/${AWS_INSTALL_ZIP}" -d "$AWS_INSTALL_TMP"
+                elif command -v python3 >/dev/null 2>&1; then
+                  AWS_INSTALL_ZIP="$AWS_INSTALL_ZIP" AWS_INSTALL_TMP="$AWS_INSTALL_TMP" python3 - <<'PY'
+import os
+import zipfile
+
+zip_path = f"/tmp/{os.environ['AWS_INSTALL_ZIP']}"
+extract_to = os.environ['AWS_INSTALL_TMP']
+zipfile.ZipFile(zip_path).extractall(extract_to)
+PY
+                else
+                  echo "ERROR: unzip or python3 is required to extract AWS CLI"
+                  exit 1
+                fi
+
+                "$AWS_INSTALL_TMP/aws/install" -i "$AWS_INSTALL_ROOT" -b "$AWS_BIN_DIR" --update
+                AWS_BIN="$AWS_BIN_DIR/aws"
               fi
 
               if [ -z "$AWS_BIN" ]; then
@@ -152,6 +184,8 @@ PY
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
+              export PATH="$WORKSPACE/.bin:$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin:$PATH"
+              hash -r
 
               TF_BIN="$(command -v terraform || true)"
               if [ -z "$TF_BIN" ]; then
@@ -205,7 +239,7 @@ PY
 
               AWS_BIN="$(command -v aws || true)"
               if [ -z "$AWS_BIN" ]; then
-                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws; do
+                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws /usr/local/aws-cli/v2/current/bin/aws; do
                   if [ -x "$CANDIDATE" ]; then
                     AWS_BIN="$CANDIDATE"
                     break
@@ -214,12 +248,42 @@ PY
               fi
 
               if [ -z "$AWS_BIN" ]; then
-                if command -v python3 >/dev/null 2>&1; then
-                  python3 -m pip --version >/dev/null 2>&1 || python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
-                  python3 -m pip install --user --upgrade awscli >/dev/null 2>&1
-                  export PATH="$HOME/.local/bin:$PATH"
-                  AWS_BIN="$(command -v aws || true)"
+                AWS_BIN_DIR="${WORKSPACE}/.bin"
+                AWS_INSTALL_ROOT="${WORKSPACE}/.aws-cli"
+                AWS_INSTALL_ZIP="awscliv2.zip"
+                AWS_INSTALL_TMP="/tmp/awscliv2"
+                mkdir -p "$AWS_BIN_DIR"
+                rm -rf "$AWS_INSTALL_TMP"
+                mkdir -p "$AWS_INSTALL_TMP"
+
+                echo "AWS CLI not found in PATH, downloading AWS CLI v2 to workspace..."
+                if command -v curl >/dev/null 2>&1; then
+                  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/${AWS_INSTALL_ZIP}"
+                elif command -v wget >/dev/null 2>&1; then
+                  wget -q "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O "/tmp/${AWS_INSTALL_ZIP}"
+                else
+                  echo "ERROR: curl or wget is required to download AWS CLI"
+                  exit 1
                 fi
+
+                if command -v unzip >/dev/null 2>&1; then
+                  unzip -oq "/tmp/${AWS_INSTALL_ZIP}" -d "$AWS_INSTALL_TMP"
+                elif command -v python3 >/dev/null 2>&1; then
+                  AWS_INSTALL_ZIP="$AWS_INSTALL_ZIP" AWS_INSTALL_TMP="$AWS_INSTALL_TMP" python3 - <<'PY'
+import os
+import zipfile
+
+zip_path = f"/tmp/{os.environ['AWS_INSTALL_ZIP']}"
+extract_to = os.environ['AWS_INSTALL_TMP']
+zipfile.ZipFile(zip_path).extractall(extract_to)
+PY
+                else
+                  echo "ERROR: unzip or python3 is required to extract AWS CLI"
+                  exit 1
+                fi
+
+                "$AWS_INSTALL_TMP/aws/install" -i "$AWS_INSTALL_ROOT" -b "$AWS_BIN_DIR" --update
+                AWS_BIN="$AWS_BIN_DIR/aws"
               fi
 
               if [ -z "$AWS_BIN" ]; then
