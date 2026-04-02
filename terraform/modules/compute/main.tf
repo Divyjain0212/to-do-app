@@ -61,10 +61,10 @@ resource "aws_iam_instance_profile" "ec2" {
 }
 
 resource "aws_key_pair" "app" {
-  count           = var.ssh_public_key != "" ? 1 : 0
-  key_name        = "${var.project_name}-${var.environment}-key"
-  public_key      = var.ssh_public_key
-  tags            = var.tags
+  count      = var.ssh_public_key != "" ? 1 : 0
+  key_name   = "${var.project_name}-${var.environment}-key"
+  public_key = var.ssh_public_key
+  tags       = var.tags
 }
 
 resource "aws_launch_template" "app" {
@@ -80,17 +80,17 @@ resource "aws_launch_template" "app" {
   vpc_security_group_ids = [var.app_security_group_id]
 
   user_data = base64encode(templatefile("${path.module}/user-data.sh", {
-    db_host          = var.db_host
-    db_name          = var.db_name
-    db_username      = var.db_username
-    db_password      = var.db_password
-    app_secret_key   = var.app_secret_key
-    google_client_id = var.google_client_id
+    db_host              = var.db_host
+    db_name              = var.db_name
+    db_username          = var.db_username
+    db_password          = var.db_password
+    app_secret_key       = var.app_secret_key
+    google_client_id     = var.google_client_id
     google_client_secret = var.google_client_secret
     google_redirect_uri  = var.google_redirect_uri
-    docker_image_uri = var.docker_image_uri
-    assets_bucket_name = var.assets_bucket_name
-    config_s3_prefix = var.config_s3_prefix
+    docker_image_uri     = var.docker_image_uri
+    assets_bucket_name   = var.assets_bucket_name
+    config_s3_prefix     = var.config_s3_prefix
   }))
 
   tag_specifications {
@@ -125,7 +125,7 @@ resource "aws_autoscaling_group" "app" {
       min_healthy_percentage = 50
       instance_warmup        = 120
     }
-    triggers = ["tag"]
+    triggers = ["launch_template", "tag"]
   }
 
   tag {

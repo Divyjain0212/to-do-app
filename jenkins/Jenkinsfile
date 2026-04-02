@@ -42,54 +42,58 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
-              TF_BIN="$(command -v terraform || true)"
-              if [ -z "$TF_BIN" ] && [ -x /usr/bin/terraform ]; then
-                TF_BIN="/usr/bin/terraform"
-              fi
-              if [ -z "$TF_BIN" ] && [ -x /usr/local/bin/terraform ]; then
-                TF_BIN="/usr/local/bin/terraform"
-              fi
-              if [ -z "$TF_BIN" ] && [ -x /snap/bin/terraform ]; then
-                TF_BIN="/snap/bin/terraform"
-              fi
-
-              TF_USE_DOCKER=0
-              if [ -z "$TF_BIN" ]; then
-                TF_USE_DOCKER=1
-                TF_DOCKER_IMAGE="hashicorp/terraform:1.14.8"
-                echo "Terraform binary not found; using Docker image $TF_DOCKER_IMAGE"
-              else
-                echo "Using Terraform binary: $TF_BIN"
-              fi
-
-              tf() {
-                if [ "$TF_USE_DOCKER" -eq 1 ]; then
-                  docker run --rm \
-                    -e AWS_ACCESS_KEY_ID \
-                    -e AWS_SECRET_ACCESS_KEY \
-                    -e AWS_SESSION_TOKEN \
-                    -e AWS_DEFAULT_REGION \
-                    -e AWS_REGION \
-                    -v "$PWD:/workspace" \
-                    -w /workspace \
-                    "$TF_DOCKER_IMAGE" "$@"
-                else
-                  "$TF_BIN" "$@"
-                fi
-              }
       
               cd terraform
-              tf init -reconfigure -input=false
-              tf apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
-              CONFIG_BUCKET=$(tf output -raw assets_bucket_name)
+              terraform init -reconfigure -input=false
+              terraform apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
+              CONFIG_BUCKET=$(terraform output -raw assets_bucket_name)
+              export DB_HOST=$(terraform output -raw rds_endpoint)
 
               if [ -z "$CONFIG_BUCKET" ] || [ "$CONFIG_BUCKET" = "null" ]; then
                 echo "ERROR: assets bucket output is empty"
                 exit 1
               fi
               cd ..
-              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
-              aws s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
+              python3 - <<'PY'
+import ast
+import os
+import secrets
+from pathlib import Path
+
+tfvars_path = Path("terraform/environments/development.tfvars")
+tfvars_values = {}
+
+for raw_line in tfvars_path.read_text().splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    try:
+        tfvars_values[key] = ast.literal_eval(value)
+    except Exception:
+        tfvars_values[key] = value.strip('"')
+
+env_values = {
+    "DB_HOST": os.environ["DB_HOST"],
+    "DB_NAME": str(tfvars_values.get("db_name", "todo_dev")),
+    "DB_USER": str(tfvars_values.get("db_username", "todoadmin")),
+    "DB_PASSWORD": str(tfvars_values.get("db_password", "")),
+    "DB_PORT": "3306",
+    "APP_PORT": "8000",
+    "SECRET_KEY": str(os.environ.get("APP_SECRET_KEY") or tfvars_values.get("app_secret_key") or secrets.token_hex(32)),
+    "GOOGLE_CLIENT_ID": str(tfvars_values.get("google_client_id", "")),
+    "GOOGLE_CLIENT_SECRET": str(tfvars_values.get("google_client_secret", "")),
+    "GOOGLE_REDIRECT_URI": str(tfvars_values.get("google_redirect_uri", "")),
+}
+
+lines = [f"{key}={value}" for key, value in env_values.items()]
+Path("app/.env").write_text("\n".join(lines) + "\n")
+Path("app/.env").chmod(0o600)
+PY
+
+              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
 
               aws s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
             '''
@@ -108,55 +112,20 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
-              TF_BIN="$(command -v terraform || true)"
-              if [ -z "$TF_BIN" ] && [ -x /usr/bin/terraform ]; then
-                TF_BIN="/usr/bin/terraform"
-              fi
-              if [ -z "$TF_BIN" ] && [ -x /usr/local/bin/terraform ]; then
-                TF_BIN="/usr/local/bin/terraform"
-              fi
-              if [ -z "$TF_BIN" ] && [ -x /snap/bin/terraform ]; then
-                TF_BIN="/snap/bin/terraform"
-              fi
-
-              TF_USE_DOCKER=0
-              if [ -z "$TF_BIN" ]; then
-                TF_USE_DOCKER=1
-                TF_DOCKER_IMAGE="hashicorp/terraform:1.14.8"
-                echo "Terraform binary not found; using Docker image $TF_DOCKER_IMAGE"
-              else
-                echo "Using Terraform binary: $TF_BIN"
-              fi
-
-              tf() {
-                if [ "$TF_USE_DOCKER" -eq 1 ]; then
-                  docker run --rm \
-                    -e AWS_ACCESS_KEY_ID \
-                    -e AWS_SECRET_ACCESS_KEY \
-                    -e AWS_SESSION_TOKEN \
-                    -e AWS_DEFAULT_REGION \
-                    -e AWS_REGION \
-                    -v "$PWD:/workspace" \
-                    -w /workspace \
-                    "$TF_DOCKER_IMAGE" "$@"
-                else
-                  "$TF_BIN" "$@"
-                fi
-              }
               
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
               echo "Deploying image: $FULL_IMAGE_URI"
               
               cd terraform
-              tf init -reconfigure -input=false
-              tf validate
+              terraform init -reconfigure -input=false
+              terraform validate
               
-              BLUE_TARGET_GROUP=$(tf output -raw blue_target_group_arn 2>/dev/null || echo "")
-              GREEN_TARGET_GROUP=$(tf output -raw green_target_group_arn 2>/dev/null || echo "")
+              BLUE_TARGET_GROUP=$(terraform output -raw blue_target_group_arn 2>/dev/null || echo "")
+              GREEN_TARGET_GROUP=$(terraform output -raw green_target_group_arn 2>/dev/null || echo "")
 
               # Blue-green is only possible when Terraform exposes two distinct target groups.
               if [ -n "$BLUE_TARGET_GROUP" ] && [ -n "$GREEN_TARGET_GROUP" ] && [ "$BLUE_TARGET_GROUP" != "$GREEN_TARGET_GROUP" ]; then
-                CURRENT_ENV=$(tf output -raw active_environment 2>/dev/null || echo "blue")
+                CURRENT_ENV=$(terraform output -raw active_environment 2>/dev/null || echo "blue")
                 if [ "$CURRENT_ENV" = "blue" ]; then
                   DEPLOY_ENV="green"
                   NEW_TARGET_GROUP="$GREEN_TARGET_GROUP"
@@ -169,7 +138,7 @@ pipeline {
                 echo "Current environment: $CURRENT_ENV"
                 echo "Deploying to: $DEPLOY_ENV"
 
-                tf apply -auto-approve \
+                terraform apply -auto-approve \
                   -var="docker_image_uri=$FULL_IMAGE_URI" \
                   -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
                   -var="active_environment=$DEPLOY_ENV" \
@@ -178,7 +147,7 @@ pipeline {
                 echo "Waiting for instances to be healthy..."
                 sleep 30
 
-                ALB_LISTENER_ARN=$(tf output -raw alb_listener_arn 2>/dev/null || echo "")
+                ALB_LISTENER_ARN=$(terraform output -raw alb_listener_arn 2>/dev/null || echo "")
                 if [ -z "$ALB_LISTENER_ARN" ]; then
                   echo "ERROR: Could not retrieve ALB listener ARN"
                   exit 1
@@ -192,7 +161,7 @@ pipeline {
                 echo "Active environment switched to: $DEPLOY_ENV"
               else
                 echo "Single target group topology detected; using rolling deployment"
-                tf apply -auto-approve \
+                terraform apply -auto-approve \
                   -var="docker_image_uri=$FULL_IMAGE_URI" \
                   -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
                   -var-file=environments/development.tfvars

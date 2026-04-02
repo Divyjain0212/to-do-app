@@ -3,7 +3,23 @@ set -e
 
 # Update package lists
 apt-get update
-apt-get install -y ca-certificates curl python3-docker awscli ansible
+apt-get install -y ca-certificates curl unzip python3-docker ansible
+
+# Install AWS CLI v2 (awscli apt package may be unavailable on some Ubuntu images)
+if ! command -v aws >/dev/null 2>&1; then
+  AWS_ARCH="x86_64"
+  if [ "$(uname -m)" = "aarch64" ]; then
+    AWS_ARCH="aarch64"
+  fi
+
+  AWS_ZIP="/tmp/awscliv2.zip"
+  AWS_TMP_DIR="/tmp/awscliv2"
+
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o "$AWS_ZIP"
+  rm -rf "$AWS_TMP_DIR"
+  unzip -q "$AWS_ZIP" -d "$AWS_TMP_DIR"
+  "$AWS_TMP_DIR/aws/install" --update
+fi
 
 # Add Docker's official GPG key
 install -m 0755 -d /etc/apt/keyrings
@@ -14,9 +30,9 @@ chmod a+r /etc/apt/keyrings/docker.asc
 tee /etc/apt/sources.list.d/docker.sources > /dev/null <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
-Suites: $$(. /etc/os-release && echo "$${UBUNTU_CODENAME:-$${VERSION_CODENAME}}")
+Suites: $(. /etc/os-release && echo "$${UBUNTU_CODENAME:-$${VERSION_CODENAME}}")
 Components: stable
-Architectures: $$(dpkg --print-architecture)
+Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
