@@ -6,9 +6,7 @@ pipeline {
     IMAGE_NAME = 'todo-app'
     IMAGE_TAG = "${BUILD_NUMBER}"
     CONFIG_S3_PREFIX = "runtime/build-${BUILD_NUMBER}"
-    AWS_REGION = 'ap-south-1'
-    TERRAFORM_BIN = '/usr/local/bin/terraform'
-    AWS_CLI_BIN = '/usr/local/bin/aws'
+    AWS_REGION = 'ap-south-1
   }
 
   stages {
@@ -44,52 +42,21 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
-              TF_BIN="$TERRAFORM_BIN"
-              AWS_BIN="$AWS_CLI_BIN"
-
-              if [ ! -x "$TF_BIN" ] && [ -x "/usr/bin/terraform" ]; then
-                TF_BIN="/usr/bin/terraform"
-              fi
-
-              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/bin/aws" ]; then
-                AWS_BIN="/usr/bin/aws"
-              fi
-
-              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/local/aws-cli/v2/current/bin/aws" ]; then
-                AWS_BIN="/usr/local/aws-cli/v2/current/bin/aws"
-              fi
-
-              if [ ! -x "$TF_BIN" ]; then
-                echo "ERROR: terraform binary is not executable at $TF_BIN"
-                exit 1
-              fi
-
-              echo "Using Terraform binary: $TF_BIN"
-              "$TF_BIN" version
-
-              if [ ! -x "$AWS_BIN" ]; then
-                echo "ERROR: aws cli binary is not executable at $AWS_BIN"
-                exit 1
-              fi
-
-              echo "Using AWS CLI binary: $AWS_BIN"
-              "$AWS_BIN" --version
-
+      
               cd terraform
-              "$TF_BIN" init -reconfigure -input=false
-              "$TF_BIN" apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
-              CONFIG_BUCKET=$("$TF_BIN" output -raw assets_bucket_name)
+              terraform init -reconfigure -input=false
+              terraform apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
+              CONFIG_BUCKET=$(terraform output -raw assets_bucket_name)
 
               if [ -z "$CONFIG_BUCKET" ] || [ "$CONFIG_BUCKET" = "null" ]; then
                 echo "ERROR: assets bucket output is empty"
                 exit 1
               fi
               cd ..
+              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
+              aws s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
 
-              "$AWS_BIN" s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
-              "$AWS_BIN" s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
-
-              "$AWS_BIN" s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
+              aws s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
             '''
           }
         }
@@ -106,50 +73,20 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
-              TF_BIN="$TERRAFORM_BIN"
-              AWS_BIN="$AWS_CLI_BIN"
-
-              if [ ! -x "$TF_BIN" ] && [ -x "/usr/bin/terraform" ]; then
-                TF_BIN="/usr/bin/terraform"
-              fi
-
-              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/bin/aws" ]; then
-                AWS_BIN="/usr/bin/aws"
-              fi
-
-              if [ ! -x "$AWS_BIN" ] && [ -x "/usr/local/aws-cli/v2/current/bin/aws" ]; then
-                AWS_BIN="/usr/local/aws-cli/v2/current/bin/aws"
-              fi
-
-              if [ ! -x "$TF_BIN" ]; then
-                echo "ERROR: terraform binary is not executable at $TF_BIN"
-                exit 1
-              fi
-
-              echo "Using Terraform binary: $TF_BIN"
-              "$TF_BIN" version
-
-              if [ ! -x "$AWS_BIN" ]; then
-                echo "ERROR: aws cli binary is not executable at $AWS_BIN"
-                exit 1
-              fi
-
-              echo "Using AWS CLI binary: $AWS_BIN"
-              "$AWS_BIN" --version
-
+              
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
               echo "Deploying image: $FULL_IMAGE_URI"
               
               cd terraform
-              "$TF_BIN" init -reconfigure -input=false
-              "$TF_BIN" validate
+              terraform init -reconfigure -input=false
+              terraform validate
               
-              BLUE_TARGET_GROUP=$("$TF_BIN" output -raw blue_target_group_arn 2>/dev/null || echo "")
-              GREEN_TARGET_GROUP=$("$TF_BIN" output -raw green_target_group_arn 2>/dev/null || echo "")
+              BLUE_TARGET_GROUP=$(terraform output -raw blue_target_group_arn 2>/dev/null || echo "")
+              GREEN_TARGET_GROUP=$(terraform output -raw green_target_group_arn 2>/dev/null || echo "")
 
               # Blue-green is only possible when Terraform exposes two distinct target groups.
               if [ -n "$BLUE_TARGET_GROUP" ] && [ -n "$GREEN_TARGET_GROUP" ] && [ "$BLUE_TARGET_GROUP" != "$GREEN_TARGET_GROUP" ]; then
-                CURRENT_ENV=$("$TF_BIN" output -raw active_environment 2>/dev/null || echo "blue")
+                CURRENT_ENV=$(terraform output -raw active_environment 2>/dev/null || echo "blue")
                 if [ "$CURRENT_ENV" = "blue" ]; then
                   DEPLOY_ENV="green"
                   NEW_TARGET_GROUP="$GREEN_TARGET_GROUP"
@@ -162,7 +99,7 @@ pipeline {
                 echo "Current environment: $CURRENT_ENV"
                 echo "Deploying to: $DEPLOY_ENV"
 
-                "$TF_BIN" apply -auto-approve \
+                terraform apply -auto-approve \
                   -var="docker_image_uri=$FULL_IMAGE_URI" \
                   -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
                   -var="active_environment=$DEPLOY_ENV" \
@@ -171,13 +108,13 @@ pipeline {
                 echo "Waiting for instances to be healthy..."
                 sleep 30
 
-                ALB_LISTENER_ARN=$("$TF_BIN" output -raw alb_listener_arn 2>/dev/null || echo "")
+                ALB_LISTENER_ARN=$(terraform output -raw alb_listener_arn 2>/dev/null || echo "")
                 if [ -z "$ALB_LISTENER_ARN" ]; then
                   echo "ERROR: Could not retrieve ALB listener ARN"
                   exit 1
                 fi
 
-                "$AWS_BIN" elbv2 modify-listener \
+                aws elbv2 modify-listener \
                   --listener-arn "$ALB_LISTENER_ARN" \
                   --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
 
@@ -185,7 +122,7 @@ pipeline {
                 echo "Active environment switched to: $DEPLOY_ENV"
               else
                 echo "Single target group topology detected; using rolling deployment"
-                "$TF_BIN" apply -auto-approve \
+                terraform apply -auto-approve \
                   -var="docker_image_uri=$FULL_IMAGE_URI" \
                   -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
                   -var-file=environments/development.tfvars
