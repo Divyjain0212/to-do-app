@@ -28,7 +28,7 @@
             --name todo-app \
             -p 8000:8000 \
             --env-file /etc/todo-app/app.env \
-            --health-cmd="curl -f http://localhost:8000/health || exit 1" \
+            --health-cmd="python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1" \
             --health-interval=30s \
             --health-timeout=10s \
             --health-retries=3 \
