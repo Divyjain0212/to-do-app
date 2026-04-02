@@ -56,40 +56,9 @@ pipeline {
               fi
 
               if [ -z "$TF_BIN" ]; then
-                TF_VERSION="1.6.6"
-                TF_DIR="${WORKSPACE}/.bin"
-                TF_ZIP="terraform_${TF_VERSION}_linux_amd64.zip"
-                TF_URL="https://releases.hashicorp.com/terraform/${TF_VERSION}/${TF_ZIP}"
-                mkdir -p "$TF_DIR"
-
-                echo "Terraform not found in PATH, downloading ${TF_VERSION} to workspace..."
-                if command -v curl >/dev/null 2>&1; then
-                  curl -fsSL "$TF_URL" -o "/tmp/${TF_ZIP}"
-                elif command -v wget >/dev/null 2>&1; then
-                  wget -q "$TF_URL" -O "/tmp/${TF_ZIP}"
-                else
-                  echo "ERROR: curl or wget is required to download Terraform"
-                  exit 1
-                fi
-
-                if command -v unzip >/dev/null 2>&1; then
-                  unzip -oq "/tmp/${TF_ZIP}" -d "$TF_DIR"
-                elif command -v python3 >/dev/null 2>&1; then
-                  TF_ZIP="$TF_ZIP" TF_DIR="$TF_DIR" python3 - <<'PY'
-import os
-import zipfile
-
-zip_path = f"/tmp/{os.environ['TF_ZIP']}"
-extract_to = os.environ['TF_DIR']
-zipfile.ZipFile(zip_path).extractall(extract_to)
-PY
-                else
-                  echo "ERROR: unzip or python3 is required to extract Terraform"
-                  exit 1
-                fi
-
-                chmod +x "${TF_DIR}/terraform"
-                TF_BIN="${TF_DIR}/terraform"
+                echo "ERROR: terraform is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
               fi
 
               echo "Using Terraform binary: $TF_BIN"
@@ -106,42 +75,9 @@ PY
               fi
 
               if [ -z "$AWS_BIN" ]; then
-                AWS_BIN_DIR="${WORKSPACE}/.bin"
-                AWS_INSTALL_ROOT="${WORKSPACE}/.aws-cli"
-                AWS_INSTALL_ZIP="awscliv2.zip"
-                AWS_INSTALL_TMP="/tmp/awscliv2"
-                mkdir -p "$AWS_BIN_DIR"
-                rm -rf "$AWS_INSTALL_TMP"
-                mkdir -p "$AWS_INSTALL_TMP"
-
-                echo "AWS CLI not found in PATH, downloading AWS CLI v2 to workspace..."
-                if command -v curl >/dev/null 2>&1; then
-                  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/${AWS_INSTALL_ZIP}"
-                elif command -v wget >/dev/null 2>&1; then
-                  wget -q "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O "/tmp/${AWS_INSTALL_ZIP}"
-                else
-                  echo "ERROR: curl or wget is required to download AWS CLI"
-                  exit 1
-                fi
-
-                if command -v unzip >/dev/null 2>&1; then
-                  unzip -oq "/tmp/${AWS_INSTALL_ZIP}" -d "$AWS_INSTALL_TMP"
-                elif command -v python3 >/dev/null 2>&1; then
-                  AWS_INSTALL_ZIP="$AWS_INSTALL_ZIP" AWS_INSTALL_TMP="$AWS_INSTALL_TMP" python3 - <<'PY'
-import os
-import zipfile
-
-zip_path = f"/tmp/{os.environ['AWS_INSTALL_ZIP']}"
-extract_to = os.environ['AWS_INSTALL_TMP']
-zipfile.ZipFile(zip_path).extractall(extract_to)
-PY
-                else
-                  echo "ERROR: unzip or python3 is required to extract AWS CLI"
-                  exit 1
-                fi
-
-                "$AWS_INSTALL_TMP/aws/install" -i "$AWS_INSTALL_ROOT" -b "$AWS_BIN_DIR" --update
-                AWS_BIN="$AWS_BIN_DIR/aws"
+                echo "ERROR: aws cli is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
               fi
 
               if [ -z "$AWS_BIN" ]; then
@@ -174,7 +110,7 @@ PY
       }
     }
 
-    stage('Blue-green Deployment with Terraform') {
+    stage('Deploy with Terraform') {
       steps {
         script {
           withCredentials([
@@ -198,40 +134,9 @@ PY
               fi
 
               if [ -z "$TF_BIN" ]; then
-                TF_VERSION="1.6.6"
-                TF_DIR="${WORKSPACE}/.bin"
-                TF_ZIP="terraform_${TF_VERSION}_linux_amd64.zip"
-                TF_URL="https://releases.hashicorp.com/terraform/${TF_VERSION}/${TF_ZIP}"
-                mkdir -p "$TF_DIR"
-
-                echo "Terraform not found in PATH, downloading ${TF_VERSION} to workspace..."
-                if command -v curl >/dev/null 2>&1; then
-                  curl -fsSL "$TF_URL" -o "/tmp/${TF_ZIP}"
-                elif command -v wget >/dev/null 2>&1; then
-                  wget -q "$TF_URL" -O "/tmp/${TF_ZIP}"
-                else
-                  echo "ERROR: curl or wget is required to download Terraform"
-                  exit 1
-                fi
-
-                if command -v unzip >/dev/null 2>&1; then
-                  unzip -oq "/tmp/${TF_ZIP}" -d "$TF_DIR"
-                elif command -v python3 >/dev/null 2>&1; then
-                  TF_ZIP="$TF_ZIP" TF_DIR="$TF_DIR" python3 - <<'PY'
-import os
-import zipfile
-
-zip_path = f"/tmp/{os.environ['TF_ZIP']}"
-extract_to = os.environ['TF_DIR']
-zipfile.ZipFile(zip_path).extractall(extract_to)
-PY
-                else
-                  echo "ERROR: unzip or python3 is required to extract Terraform"
-                  exit 1
-                fi
-
-                chmod +x "${TF_DIR}/terraform"
-                TF_BIN="${TF_DIR}/terraform"
+                echo "ERROR: terraform is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
               fi
 
               echo "Using Terraform binary: $TF_BIN"
@@ -248,42 +153,9 @@ PY
               fi
 
               if [ -z "$AWS_BIN" ]; then
-                AWS_BIN_DIR="${WORKSPACE}/.bin"
-                AWS_INSTALL_ROOT="${WORKSPACE}/.aws-cli"
-                AWS_INSTALL_ZIP="awscliv2.zip"
-                AWS_INSTALL_TMP="/tmp/awscliv2"
-                mkdir -p "$AWS_BIN_DIR"
-                rm -rf "$AWS_INSTALL_TMP"
-                mkdir -p "$AWS_INSTALL_TMP"
-
-                echo "AWS CLI not found in PATH, downloading AWS CLI v2 to workspace..."
-                if command -v curl >/dev/null 2>&1; then
-                  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/${AWS_INSTALL_ZIP}"
-                elif command -v wget >/dev/null 2>&1; then
-                  wget -q "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O "/tmp/${AWS_INSTALL_ZIP}"
-                else
-                  echo "ERROR: curl or wget is required to download AWS CLI"
-                  exit 1
-                fi
-
-                if command -v unzip >/dev/null 2>&1; then
-                  unzip -oq "/tmp/${AWS_INSTALL_ZIP}" -d "$AWS_INSTALL_TMP"
-                elif command -v python3 >/dev/null 2>&1; then
-                  AWS_INSTALL_ZIP="$AWS_INSTALL_ZIP" AWS_INSTALL_TMP="$AWS_INSTALL_TMP" python3 - <<'PY'
-import os
-import zipfile
-
-zip_path = f"/tmp/{os.environ['AWS_INSTALL_ZIP']}"
-extract_to = os.environ['AWS_INSTALL_TMP']
-zipfile.ZipFile(zip_path).extractall(extract_to)
-PY
-                else
-                  echo "ERROR: unzip or python3 is required to extract AWS CLI"
-                  exit 1
-                fi
-
-                "$AWS_INSTALL_TMP/aws/install" -i "$AWS_INSTALL_ROOT" -b "$AWS_BIN_DIR" --update
-                AWS_BIN="$AWS_BIN_DIR/aws"
+                echo "ERROR: aws cli is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
               fi
 
               if [ -z "$AWS_BIN" ]; then
@@ -302,49 +174,53 @@ PY
               "$TF_BIN" init -reconfigure -input=false
               "$TF_BIN" validate
               
-              # Get current active environment (blue or green)
-              CURRENT_ENV=$("$TF_BIN" output -raw active_environment 2>/dev/null || echo "blue")
-              if [ "$CURRENT_ENV" = "blue" ]; then
-                DEPLOY_ENV="green"
+              BLUE_TARGET_GROUP=$("$TF_BIN" output -raw blue_target_group_arn 2>/dev/null || echo "")
+              GREEN_TARGET_GROUP=$("$TF_BIN" output -raw green_target_group_arn 2>/dev/null || echo "")
+
+              # Blue-green is only possible when Terraform exposes two distinct target groups.
+              if [ -n "$BLUE_TARGET_GROUP" ] && [ -n "$GREEN_TARGET_GROUP" ] && [ "$BLUE_TARGET_GROUP" != "$GREEN_TARGET_GROUP" ]; then
+                CURRENT_ENV=$("$TF_BIN" output -raw active_environment 2>/dev/null || echo "blue")
+                if [ "$CURRENT_ENV" = "blue" ]; then
+                  DEPLOY_ENV="green"
+                  NEW_TARGET_GROUP="$GREEN_TARGET_GROUP"
+                else
+                  DEPLOY_ENV="blue"
+                  NEW_TARGET_GROUP="$BLUE_TARGET_GROUP"
+                fi
+
+                echo "Blue-green topology detected"
+                echo "Current environment: $CURRENT_ENV"
+                echo "Deploying to: $DEPLOY_ENV"
+
+                "$TF_BIN" apply -auto-approve \
+                  -var="docker_image_uri=$FULL_IMAGE_URI" \
+                  -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
+                  -var="active_environment=$DEPLOY_ENV" \
+                  -var-file=environments/development.tfvars
+
+                echo "Waiting for instances to be healthy..."
+                sleep 30
+
+                ALB_LISTENER_ARN=$("$TF_BIN" output -raw alb_listener_arn 2>/dev/null || echo "")
+                if [ -z "$ALB_LISTENER_ARN" ]; then
+                  echo "ERROR: Could not retrieve ALB listener ARN"
+                  exit 1
+                fi
+
+                "$AWS_BIN" elbv2 modify-listener \
+                  --listener-arn "$ALB_LISTENER_ARN" \
+                  --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
+
+                echo "Blue-green deployment successful"
+                echo "Active environment switched to: $DEPLOY_ENV"
               else
-                DEPLOY_ENV="blue"
+                echo "Single target group topology detected; using rolling deployment"
+                "$TF_BIN" apply -auto-approve \
+                  -var="docker_image_uri=$FULL_IMAGE_URI" \
+                  -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
+                  -var-file=environments/development.tfvars
+                echo "Rolling deployment successful"
               fi
-              
-              echo "Current environment: $CURRENT_ENV"
-              echo "Deploying to: $DEPLOY_ENV"
-              
-              # Deploy to new environment
-              "$TF_BIN" apply -auto-approve \
-                -var="docker_image_uri=$FULL_IMAGE_URI" \
-                -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
-                -var="active_environment=$DEPLOY_ENV" \
-                -var-file=environments/development.tfvars
-              
-              # Get new environment details
-              NEW_TARGET_GROUP=$("$TF_BIN" output -raw ${DEPLOY_ENV}_target_group_arn 2>/dev/null || echo "")
-              
-              if [ -z "$NEW_TARGET_GROUP" ]; then
-                echo "ERROR: Could not retrieve target group for $DEPLOY_ENV environment"
-                exit 1
-              fi
-              
-              echo "Waiting for instances to be healthy..."
-              sleep 30
-              
-              # Switch ALB listener to new environment
-              ALB_LISTENER_ARN=$("$TF_BIN" output -raw alb_listener_arn 2>/dev/null || echo "")
-              
-              if [ -z "$ALB_LISTENER_ARN" ]; then
-                echo "ERROR: Could not retrieve ALB listener ARN"
-                exit 1
-              fi
-              
-              "$AWS_BIN" elbv2 modify-listener \
-                --listener-arn "$ALB_LISTENER_ARN" \
-                --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
-              
-              echo "Blue-green deployment successful!"
-              echo "Active environment switched to: $DEPLOY_ENV"
             '''
           }
         }
