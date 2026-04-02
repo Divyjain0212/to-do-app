@@ -7,6 +7,8 @@ pipeline {
     IMAGE_TAG = "${BUILD_NUMBER}"
     CONFIG_S3_PREFIX = "runtime/build-${BUILD_NUMBER}"
     AWS_REGION = 'ap-south-1'
+    TERRAFORM_BIN = '/usr/bin/terraform'
+    AWS_CLI_BIN = '/usr/local/bin/aws'
   }
 
   stages {
@@ -42,47 +44,19 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
-              export PATH="$WORKSPACE/.bin:$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin:$PATH"
-              hash -r
+              TF_BIN="$TERRAFORM_BIN"
+              AWS_BIN="$AWS_CLI_BIN"
 
-              TF_BIN="$(command -v terraform || true)"
-              if [ -z "$TF_BIN" ]; then
-                for CANDIDATE in /usr/local/bin/terraform /usr/bin/terraform /snap/bin/terraform; do
-                  if [ -x "$CANDIDATE" ]; then
-                    TF_BIN="$CANDIDATE"
-                    break
-                  fi
-                done
-              fi
-
-              if [ -z "$TF_BIN" ]; then
-                echo "ERROR: terraform is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
+              if [ ! -x "$TF_BIN" ]; then
+                echo "ERROR: terraform binary is not executable at $TF_BIN"
                 exit 1
               fi
 
               echo "Using Terraform binary: $TF_BIN"
               "$TF_BIN" version
 
-              AWS_BIN="$(command -v aws || true)"
-              if [ -z "$AWS_BIN" ]; then
-                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws /usr/local/aws-cli/v2/current/bin/aws; do
-                  if [ -x "$CANDIDATE" ]; then
-                    AWS_BIN="$CANDIDATE"
-                    break
-                  fi
-                done
-              fi
-
-              if [ -z "$AWS_BIN" ]; then
-                echo "ERROR: aws cli is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
-                exit 1
-              fi
-
-              if [ -z "$AWS_BIN" ]; then
-                echo "ERROR: aws cli is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
+              if [ ! -x "$AWS_BIN" ]; then
+                echo "ERROR: aws cli binary is not executable at $AWS_BIN"
                 exit 1
               fi
 
@@ -120,47 +94,19 @@ pipeline {
             sh '''
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
-              export PATH="$WORKSPACE/.bin:$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin:$PATH"
-              hash -r
+              TF_BIN="$TERRAFORM_BIN"
+              AWS_BIN="$AWS_CLI_BIN"
 
-              TF_BIN="$(command -v terraform || true)"
-              if [ -z "$TF_BIN" ]; then
-                for CANDIDATE in /usr/local/bin/terraform /usr/bin/terraform /snap/bin/terraform; do
-                  if [ -x "$CANDIDATE" ]; then
-                    TF_BIN="$CANDIDATE"
-                    break
-                  fi
-                done
-              fi
-
-              if [ -z "$TF_BIN" ]; then
-                echo "ERROR: terraform is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
+              if [ ! -x "$TF_BIN" ]; then
+                echo "ERROR: terraform binary is not executable at $TF_BIN"
                 exit 1
               fi
 
               echo "Using Terraform binary: $TF_BIN"
               "$TF_BIN" version
 
-              AWS_BIN="$(command -v aws || true)"
-              if [ -z "$AWS_BIN" ]; then
-                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws /usr/local/aws-cli/v2/current/bin/aws; do
-                  if [ -x "$CANDIDATE" ]; then
-                    AWS_BIN="$CANDIDATE"
-                    break
-                  fi
-                done
-              fi
-
-              if [ -z "$AWS_BIN" ]; then
-                echo "ERROR: aws cli is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
-                exit 1
-              fi
-
-              if [ -z "$AWS_BIN" ]; then
-                echo "ERROR: aws cli is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
+              if [ ! -x "$AWS_BIN" ]; then
+                echo "ERROR: aws cli binary is not executable at $AWS_BIN"
                 exit 1
               fi
 
