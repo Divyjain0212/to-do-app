@@ -93,6 +93,34 @@ PY
               echo "Using Terraform binary: $TF_BIN"
               "$TF_BIN" version
 
+              AWS_BIN="$(command -v aws || true)"
+              if [ -z "$AWS_BIN" ]; then
+                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws; do
+                  if [ -x "$CANDIDATE" ]; then
+                    AWS_BIN="$CANDIDATE"
+                    break
+                  fi
+                done
+              fi
+
+              if [ -z "$AWS_BIN" ]; then
+                if command -v python3 >/dev/null 2>&1; then
+                  python3 -m pip --version >/dev/null 2>&1 || python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
+                  python3 -m pip install --user --upgrade awscli >/dev/null 2>&1
+                  export PATH="$HOME/.local/bin:$PATH"
+                  AWS_BIN="$(command -v aws || true)"
+                fi
+              fi
+
+              if [ -z "$AWS_BIN" ]; then
+                echo "ERROR: aws cli is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
+              fi
+
+              echo "Using AWS CLI binary: $AWS_BIN"
+              "$AWS_BIN" --version
+
               cd terraform
               "$TF_BIN" init -reconfigure -input=false
               "$TF_BIN" apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
@@ -104,10 +132,10 @@ PY
               fi
               cd ..
 
-              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
-              aws s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
+              "$AWS_BIN" s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
+              "$AWS_BIN" s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
 
-              aws s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
+              "$AWS_BIN" s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
             '''
           }
         }
@@ -175,6 +203,34 @@ PY
               echo "Using Terraform binary: $TF_BIN"
               "$TF_BIN" version
 
+              AWS_BIN="$(command -v aws || true)"
+              if [ -z "$AWS_BIN" ]; then
+                for CANDIDATE in /usr/local/bin/aws /usr/bin/aws /snap/bin/aws; do
+                  if [ -x "$CANDIDATE" ]; then
+                    AWS_BIN="$CANDIDATE"
+                    break
+                  fi
+                done
+              fi
+
+              if [ -z "$AWS_BIN" ]; then
+                if command -v python3 >/dev/null 2>&1; then
+                  python3 -m pip --version >/dev/null 2>&1 || python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
+                  python3 -m pip install --user --upgrade awscli >/dev/null 2>&1
+                  export PATH="$HOME/.local/bin:$PATH"
+                  AWS_BIN="$(command -v aws || true)"
+                fi
+              fi
+
+              if [ -z "$AWS_BIN" ]; then
+                echo "ERROR: aws cli is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
+              fi
+
+              echo "Using AWS CLI binary: $AWS_BIN"
+              "$AWS_BIN" --version
+
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
               echo "Deploying image: $FULL_IMAGE_URI"
               
@@ -219,7 +275,7 @@ PY
                 exit 1
               fi
               
-              aws elbv2 modify-listener \
+              "$AWS_BIN" elbv2 modify-listener \
                 --listener-arn "$ALB_LISTENER_ARN" \
                 --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
               
