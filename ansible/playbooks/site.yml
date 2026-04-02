@@ -26,7 +26,7 @@
           ExecStartPre=/usr/bin/docker pull {{ docker_image_uri }}
           ExecStart=/usr/bin/docker run --rm \
             --name todo-app \
-            -p 8000:8000 \
+            -p 8080:8000 \
             --env-file /etc/todo-app/app.env \
             --health-cmd="python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1" \
             --health-interval=30s \
