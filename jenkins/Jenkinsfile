@@ -6,7 +6,7 @@ pipeline {
     IMAGE_NAME = 'todo-app'
     IMAGE_TAG = "${BUILD_NUMBER}"
     CONFIG_S3_PREFIX = "runtime/build-${BUILD_NUMBER}"
-    AWS_REGION = 'ap-south-1
+    AWS_REGION = 'ap-south-1'
   }
 
   stages {
