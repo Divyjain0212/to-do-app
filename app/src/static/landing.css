@@ -21,6 +21,7 @@ body {
   min-height: 100vh;
   font-family: "Outfit", "Trebuchet MS", sans-serif;
   color: var(--text);
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 88% 10%, rgba(194, 99, 63, 0.24) 0%, rgba(194, 99, 63, 0) 34%),
     radial-gradient(circle at 7% 90%, rgba(31, 111, 120, 0.22) 0%, rgba(31, 111, 120, 0) 40%),
@@ -51,18 +52,19 @@ body {
 }
 
 .landing-shell {
-  width: min(1100px, 94vw);
-  margin: 40px auto;
+  width: min(1100px, calc(100vw - 24px));
+  margin: clamp(16px, 4vw, 40px) auto;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 18px;
+  align-items: start;
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 22px;
-  padding: 24px;
+  padding: clamp(18px, 3vw, 24px);
   box-shadow: var(--shadow);
 }
 
@@ -108,7 +110,7 @@ body {
 
 .auth-columns {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -188,5 +190,46 @@ body {
 @media (max-width: 900px) {
   .landing-shell {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .landing-shell {
+    width: min(100%, calc(100vw - 16px));
+    margin: 12px auto;
+    gap: 12px;
+  }
+
+  .card {
+    border-radius: 18px;
+  }
+
+  .hero-copy {
+    font-size: 15px;
+  }
+
+  .auth-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
+  }
+
+  .hero h1 {
+    font-size: clamp(28px, 12vw, 38px);
+  }
+
+  .highlights {
+    padding-left: 16px;
+    gap: 8px;
+  }
+
+  .auth-form input,
+  .auth-form button,
+  .google-btn {
+    min-height: 44px;
   }
 }
