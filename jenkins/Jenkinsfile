@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+  agent { label "vinod" }
 
   environment {
     APP_DIR = 'app'
@@ -35,60 +35,170 @@ pipeline {
       }
     }
 
-    stage('Rolling Deploy') {
+    stage('Upload Config to S3') {
       steps {
         script {
-          echo 'Trigger rolling instance refresh via Terraform/ASG integration.'
-          def deployCmd = '''
-            set -eux
-            export TF_IN_AUTOMATION=1
-            export TF_INPUT=0
-            FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-            if [ -z "$FULL_IMAGE_URI" ]; then
-              echo "docker_image_uri is empty; aborting deploy"
-              exit 1
-            fi
-            echo "Deploying image: $FULL_IMAGE_URI"
-            export AWS_DEFAULT_REGION=ap-south-1
-            export AWS_REGION=ap-south-1
-            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-              echo "AWS credentials were not injected from awsCred"
-              exit 1
-            fi
-            echo "AWS credentials injected from awsCred"
-            command -v terraform
-            terraform -version
+          withCredentials([usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+            sh '''
+              set -e
+              export AWS_DEFAULT_REGION=$AWS_REGION
+              TF_BIN="$(command -v terraform || true)"
+              if [ -z "$TF_BIN" ] && [ -x /usr/bin/terraform ]; then
+                TF_BIN="/usr/bin/terraform"
+              fi
+              if [ -z "$TF_BIN" ] && [ -x /usr/local/bin/terraform ]; then
+                TF_BIN="/usr/local/bin/terraform"
+              fi
+              if [ -z "$TF_BIN" ] && [ -x /snap/bin/terraform ]; then
+                TF_BIN="/snap/bin/terraform"
+              fi
 
-            cd terraform
-            export TF_DATA_DIR="$PWD/.terraform-jenkins"
-            rm -rf "$TF_DATA_DIR"
-            mkdir -p "$TF_DATA_DIR"
-            rm -f terraform.tfstate terraform.tfstate.backup
-            terraform init -reconfigure -input=false
-            terraform validate
-            terraform apply -auto-approve \
-              -var="docker_image_uri=$FULL_IMAGE_URI" \
-              -var-file=environments/development.tfvars
-          '''
+              TF_USE_DOCKER=0
+              if [ -z "$TF_BIN" ]; then
+                TF_USE_DOCKER=1
+                TF_DOCKER_IMAGE="hashicorp/terraform:1.14.8"
+                echo "Terraform binary not found; using Docker image $TF_DOCKER_IMAGE"
+              else
+                echo "Using Terraform binary: $TF_BIN"
+              fi
 
+              tf() {
+                if [ "$TF_USE_DOCKER" -eq 1 ]; then
+                  docker run --rm \
+                    -e AWS_ACCESS_KEY_ID \
+                    -e AWS_SECRET_ACCESS_KEY \
+                    -e AWS_SESSION_TOKEN \
+                    -e AWS_DEFAULT_REGION \
+                    -e AWS_REGION \
+                    -v "$PWD:/workspace" \
+                    -w /workspace \
+                    "$TF_DOCKER_IMAGE" "$@"
+                else
+                  "$TF_BIN" "$@"
+                fi
+              }
+      
+              cd terraform
+              tf init -reconfigure -input=false
+              tf apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
+              CONFIG_BUCKET=$(tf output -raw assets_bucket_name)
+
+              if [ -z "$CONFIG_BUCKET" ] || [ "$CONFIG_BUCKET" = "null" ]; then
+                echo "ERROR: assets bucket output is empty"
+                exit 1
+              fi
+              cd ..
+              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env" || \
+              aws s3 cp app/.env.example "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
+
+              aws s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Deploy with Terraform') {
+      steps {
+        script {
           withCredentials([
-            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')
+            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
+            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
           ]) {
-            try {
-              echo 'Trying awsCred as AWS Credentials type'
-              withCredentials([
-                [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'awsCred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
-              ]) {
-                sh deployCmd
+            sh '''
+              set -e
+              export AWS_DEFAULT_REGION=$AWS_REGION
+              TF_BIN="$(command -v terraform || true)"
+              if [ -z "$TF_BIN" ] && [ -x /usr/bin/terraform ]; then
+                TF_BIN="/usr/bin/terraform"
+              fi
+              if [ -z "$TF_BIN" ] && [ -x /usr/local/bin/terraform ]; then
+                TF_BIN="/usr/local/bin/terraform"
+              fi
+              if [ -z "$TF_BIN" ] && [ -x /snap/bin/terraform ]; then
+                TF_BIN="/snap/bin/terraform"
+              fi
+
+              TF_USE_DOCKER=0
+              if [ -z "$TF_BIN" ]; then
+                TF_USE_DOCKER=1
+                TF_DOCKER_IMAGE="hashicorp/terraform:1.14.8"
+                echo "Terraform binary not found; using Docker image $TF_DOCKER_IMAGE"
+              else
+                echo "Using Terraform binary: $TF_BIN"
+              fi
+
+              tf() {
+                if [ "$TF_USE_DOCKER" -eq 1 ]; then
+                  docker run --rm \
+                    -e AWS_ACCESS_KEY_ID \
+                    -e AWS_SECRET_ACCESS_KEY \
+                    -e AWS_SESSION_TOKEN \
+                    -e AWS_DEFAULT_REGION \
+                    -e AWS_REGION \
+                    -v "$PWD:/workspace" \
+                    -w /workspace \
+                    "$TF_DOCKER_IMAGE" "$@"
+                else
+                  "$TF_BIN" "$@"
+                fi
               }
-            } catch (ignored) {
-              echo 'Falling back: trying awsCred as Username with password'
-              withCredentials([
-                usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
-              ]) {
-                sh deployCmd
-              }
-            }
+              
+              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
+              echo "Deploying image: $FULL_IMAGE_URI"
+              
+              cd terraform
+              tf init -reconfigure -input=false
+              tf validate
+              
+              BLUE_TARGET_GROUP=$(tf output -raw blue_target_group_arn 2>/dev/null || echo "")
+              GREEN_TARGET_GROUP=$(tf output -raw green_target_group_arn 2>/dev/null || echo "")
+
+              # Blue-green is only possible when Terraform exposes two distinct target groups.
+              if [ -n "$BLUE_TARGET_GROUP" ] && [ -n "$GREEN_TARGET_GROUP" ] && [ "$BLUE_TARGET_GROUP" != "$GREEN_TARGET_GROUP" ]; then
+                CURRENT_ENV=$(tf output -raw active_environment 2>/dev/null || echo "blue")
+                if [ "$CURRENT_ENV" = "blue" ]; then
+                  DEPLOY_ENV="green"
+                  NEW_TARGET_GROUP="$GREEN_TARGET_GROUP"
+                else
+                  DEPLOY_ENV="blue"
+                  NEW_TARGET_GROUP="$BLUE_TARGET_GROUP"
+                fi
+
+                echo "Blue-green topology detected"
+                echo "Current environment: $CURRENT_ENV"
+                echo "Deploying to: $DEPLOY_ENV"
+
+                tf apply -auto-approve \
+                  -var="docker_image_uri=$FULL_IMAGE_URI" \
+                  -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
+                  -var="active_environment=$DEPLOY_ENV" \
+                  -var-file=environments/development.tfvars
+
+                echo "Waiting for instances to be healthy..."
+                sleep 30
+
+                ALB_LISTENER_ARN=$(tf output -raw alb_listener_arn 2>/dev/null || echo "")
+                if [ -z "$ALB_LISTENER_ARN" ]; then
+                  echo "ERROR: Could not retrieve ALB listener ARN"
+                  exit 1
+                fi
+
+                aws elbv2 modify-listener \
+                  --listener-arn "$ALB_LISTENER_ARN" \
+                  --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
+
+                echo "Blue-green deployment successful"
+                echo "Active environment switched to: $DEPLOY_ENV"
+              else
+                echo "Single target group topology detected; using rolling deployment"
+                tf apply -auto-approve \
+                  -var="docker_image_uri=$FULL_IMAGE_URI" \
+                  -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
+                  -var-file=environments/development.tfvars
+                echo "Rolling deployment successful"
+              fia
+            '''
           }
         }
       }
