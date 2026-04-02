@@ -54,9 +54,40 @@ pipeline {
               fi
 
               if [ -z "$TF_BIN" ]; then
-                echo "ERROR: terraform is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
-                exit 1
+                TF_VERSION="1.6.6"
+                TF_DIR="${WORKSPACE}/.bin"
+                TF_ZIP="terraform_${TF_VERSION}_linux_amd64.zip"
+                TF_URL="https://releases.hashicorp.com/terraform/${TF_VERSION}/${TF_ZIP}"
+                mkdir -p "$TF_DIR"
+
+                echo "Terraform not found in PATH, downloading ${TF_VERSION} to workspace..."
+                if command -v curl >/dev/null 2>&1; then
+                  curl -fsSL "$TF_URL" -o "/tmp/${TF_ZIP}"
+                elif command -v wget >/dev/null 2>&1; then
+                  wget -q "$TF_URL" -O "/tmp/${TF_ZIP}"
+                else
+                  echo "ERROR: curl or wget is required to download Terraform"
+                  exit 1
+                fi
+
+                if command -v unzip >/dev/null 2>&1; then
+                  unzip -oq "/tmp/${TF_ZIP}" -d "$TF_DIR"
+                elif command -v python3 >/dev/null 2>&1; then
+                  TF_ZIP="$TF_ZIP" TF_DIR="$TF_DIR" python3 - <<'PY'
+import os
+import zipfile
+
+zip_path = f"/tmp/{os.environ['TF_ZIP']}"
+extract_to = os.environ['TF_DIR']
+zipfile.ZipFile(zip_path).extractall(extract_to)
+PY
+                else
+                  echo "ERROR: unzip or python3 is required to extract Terraform"
+                  exit 1
+                fi
+
+                chmod +x "${TF_DIR}/terraform"
+                TF_BIN="${TF_DIR}/terraform"
               fi
 
               echo "Using Terraform binary: $TF_BIN"
@@ -105,9 +136,40 @@ pipeline {
               fi
 
               if [ -z "$TF_BIN" ]; then
-                echo "ERROR: terraform is not available for the Jenkins runtime user"
-                echo "PATH=$PATH"
-                exit 1
+                TF_VERSION="1.6.6"
+                TF_DIR="${WORKSPACE}/.bin"
+                TF_ZIP="terraform_${TF_VERSION}_linux_amd64.zip"
+                TF_URL="https://releases.hashicorp.com/terraform/${TF_VERSION}/${TF_ZIP}"
+                mkdir -p "$TF_DIR"
+
+                echo "Terraform not found in PATH, downloading ${TF_VERSION} to workspace..."
+                if command -v curl >/dev/null 2>&1; then
+                  curl -fsSL "$TF_URL" -o "/tmp/${TF_ZIP}"
+                elif command -v wget >/dev/null 2>&1; then
+                  wget -q "$TF_URL" -O "/tmp/${TF_ZIP}"
+                else
+                  echo "ERROR: curl or wget is required to download Terraform"
+                  exit 1
+                fi
+
+                if command -v unzip >/dev/null 2>&1; then
+                  unzip -oq "/tmp/${TF_ZIP}" -d "$TF_DIR"
+                elif command -v python3 >/dev/null 2>&1; then
+                  TF_ZIP="$TF_ZIP" TF_DIR="$TF_DIR" python3 - <<'PY'
+import os
+import zipfile
+
+zip_path = f"/tmp/{os.environ['TF_ZIP']}"
+extract_to = os.environ['TF_DIR']
+zipfile.ZipFile(zip_path).extractall(extract_to)
+PY
+                else
+                  echo "ERROR: unzip or python3 is required to extract Terraform"
+                  exit 1
+                fi
+
+                chmod +x "${TF_DIR}/terraform"
+                TF_BIN="${TF_DIR}/terraform"
               fi
 
               echo "Using Terraform binary: $TF_BIN"
