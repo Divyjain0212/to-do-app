@@ -10,12 +10,6 @@ pipeline {
   }
 
   stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
-    }
-
     stage('Build & Push Docker Image') {
       steps {
         script {
