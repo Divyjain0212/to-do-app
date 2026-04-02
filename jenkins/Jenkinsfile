@@ -43,10 +43,29 @@ pipeline {
               set -e
               export AWS_DEFAULT_REGION=$AWS_REGION
 
+              TF_BIN="$(command -v terraform || true)"
+              if [ -z "$TF_BIN" ]; then
+                for CANDIDATE in /usr/local/bin/terraform /usr/bin/terraform /snap/bin/terraform; do
+                  if [ -x "$CANDIDATE" ]; then
+                    TF_BIN="$CANDIDATE"
+                    break
+                  fi
+                done
+              fi
+
+              if [ -z "$TF_BIN" ]; then
+                echo "ERROR: terraform is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
+              fi
+
+              echo "Using Terraform binary: $TF_BIN"
+              "$TF_BIN" version
+
               cd terraform
-              terraform init -reconfigure -input=false
-              terraform apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
-              CONFIG_BUCKET=$(terraform output -raw assets_bucket_name)
+              "$TF_BIN" init -reconfigure -input=false
+              "$TF_BIN" apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
+              CONFIG_BUCKET=$("$TF_BIN" output -raw assets_bucket_name)
 
               if [ -z "$CONFIG_BUCKET" ] || [ "$CONFIG_BUCKET" = "null" ]; then
                 echo "ERROR: assets bucket output is empty"
@@ -72,15 +91,37 @@ pipeline {
             usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
           ]) {
             sh '''
+              set -e
+              export AWS_DEFAULT_REGION=$AWS_REGION
+
+              TF_BIN="$(command -v terraform || true)"
+              if [ -z "$TF_BIN" ]; then
+                for CANDIDATE in /usr/local/bin/terraform /usr/bin/terraform /snap/bin/terraform; do
+                  if [ -x "$CANDIDATE" ]; then
+                    TF_BIN="$CANDIDATE"
+                    break
+                  fi
+                done
+              fi
+
+              if [ -z "$TF_BIN" ]; then
+                echo "ERROR: terraform is not available for the Jenkins runtime user"
+                echo "PATH=$PATH"
+                exit 1
+              fi
+
+              echo "Using Terraform binary: $TF_BIN"
+              "$TF_BIN" version
+
               FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
               echo "Deploying image: $FULL_IMAGE_URI"
               
               cd terraform
-              terraform init -reconfigure -input=false
-              terraform validate
+              "$TF_BIN" init -reconfigure -input=false
+              "$TF_BIN" validate
               
               # Get current active environment (blue or green)
-              CURRENT_ENV=$(terraform output -raw active_environment 2>/dev/null || echo "blue")
+              CURRENT_ENV=$("$TF_BIN" output -raw active_environment 2>/dev/null || echo "blue")
               if [ "$CURRENT_ENV" = "blue" ]; then
                 DEPLOY_ENV="green"
               else
@@ -91,14 +132,14 @@ pipeline {
               echo "Deploying to: $DEPLOY_ENV"
               
               # Deploy to new environment
-              terraform apply -auto-approve \
+              "$TF_BIN" apply -auto-approve \
                 -var="docker_image_uri=$FULL_IMAGE_URI" \
                 -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
                 -var="active_environment=$DEPLOY_ENV" \
                 -var-file=environments/development.tfvars
               
               # Get new environment details
-              NEW_TARGET_GROUP=$(terraform output -raw ${DEPLOY_ENV}_target_group_arn 2>/dev/null || echo "")
+              NEW_TARGET_GROUP=$("$TF_BIN" output -raw ${DEPLOY_ENV}_target_group_arn 2>/dev/null || echo "")
               
               if [ -z "$NEW_TARGET_GROUP" ]; then
                 echo "ERROR: Could not retrieve target group for $DEPLOY_ENV environment"
@@ -109,7 +150,7 @@ pipeline {
               sleep 30
               
               # Switch ALB listener to new environment
-              ALB_LISTENER_ARN=$(terraform output -raw alb_listener_arn 2>/dev/null || echo "")
+              ALB_LISTENER_ARN=$("$TF_BIN" output -raw alb_listener_arn 2>/dev/null || echo "")
               
               if [ -z "$ALB_LISTENER_ARN" ]; then
                 echo "ERROR: Could not retrieve ALB listener ARN"
