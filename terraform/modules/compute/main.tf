@@ -79,19 +79,12 @@ resource "aws_launch_template" "app" {
 
   vpc_security_group_ids = [var.app_security_group_id]
 
-  user_data = base64encode(templatefile("${path.module}/user-data.sh", {
-    db_host              = var.db_host
-    db_name              = var.db_name
-    db_username          = var.db_username
-    db_password          = var.db_password
-    app_secret_key       = var.app_secret_key
-    google_client_id     = var.google_client_id
-    google_client_secret = var.google_client_secret
-    google_redirect_uri  = var.google_redirect_uri
-    docker_image_uri     = var.docker_image_uri
-    assets_bucket_name   = var.assets_bucket_name
-    config_s3_prefix     = var.config_s3_prefix
-  }))
+  user_data = templatefile("${path.module}/user-data.sh", {
+    db_endpoint = var.db_endpoint
+    db_name     = var.db_name
+    db_user     = var.db_username
+    db_password = var.db_password
+  })
 
   tag_specifications {
     resource_type = "instance"

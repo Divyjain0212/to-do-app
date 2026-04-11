@@ -2,10 +2,9 @@ terraform {
   required_version = ">= 1.6.0"
 
   backend "s3" {
-    bucket  = "todo-capstone-tfstate-288390777244"
-    key     = "dev/terraform.tfstate"
-    region  = "ap-south-1"
-    encrypt = true
+    bucket         = "todo-capstone-terraform-state"
+    region         = "ap-south-1"
+    encrypt        = true
   }
 
   required_providers {
@@ -18,5 +17,4 @@ terraform {
 
 provider "aws" {
   region  = var.aws_region
-  profile = var.aws_profile != "" ? var.aws_profile : null
 }

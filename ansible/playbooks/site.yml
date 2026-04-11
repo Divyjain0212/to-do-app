@@ -1,44 +1,57 @@
 ---
-- name: Configure and start app servers
-  hosts: "{{ target_hosts | default('app') }}"
+- name: Configure app server
+  hosts: localhost
+  connection: local
   become: true
+  vars:
+    docker_image: divyj0212/todoapp:latest
+    app_port: 8000
 
   tasks:
-    - name: Create systemd service for todo-app
-      copy:
-        dest: /etc/systemd/system/todo-app.service
+    # ── Install Docker ────────────────────────────────────────────────────────
+    - name: Install Docker dependencies
+      apt:
+        name: [ca-certificates, curl]
+        state: present
+        update_cache: true
+
+    - name: Create Docker keyring directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
         mode: "0644"
-        content: |
-          [Unit]
-          Description=Todo Flask Application (Docker)
-          After=docker.service
-          Requires=docker.service
 
-          [Service]
-          Type=simple
-          User=root
-          Restart=always
-          RestartSec=5
-          EnvironmentFile=/etc/todo-app/app.env
+    - name: Add Docker apt repository
+      shell: |
+        . /etc/os-release
+        echo "Types: deb
+        URIs: https://download.docker.com/linux/ubuntu
+        Suites: ${UBUNTU_CODENAME:-$VERSION_CODENAME}
+        Components: stable
+        Architectures: $(dpkg --print-architecture)
+        Signed-By: /etc/apt/keyrings/docker.asc" > /etc/apt/sources.list.d/docker.sources
+      args:
+        creates: /etc/apt/sources.list.d/docker.sources
 
-          ExecStartPre=-/usr/bin/docker stop todo-app
-          ExecStartPre=-/usr/bin/docker rm todo-app
-          ExecStartPre=/usr/bin/docker pull {{ docker_image_uri }}
-          ExecStart=/usr/bin/docker run --rm \
-            --name todo-app \
-            -p 8080:8000 \
-            --env-file /etc/todo-app/app.env \
-            --health-cmd="python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1" \
-            --health-interval=30s \
-            --health-timeout=10s \
-            --health-retries=3 \
-            {{ docker_image_uri }}
-          ExecStop=/usr/bin/docker stop -t 10 todo-app
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
 
-          [Install]
-          WantedBy=multi-user.target
-
-    - name: Start Docker service
+    # ── Configure Docker ──────────────────────────────────────────────────────
+    - name: Start and enable Docker service
       systemd:
         name: docker
         enabled: true
@@ -50,12 +63,41 @@
         groups: docker
         append: true
 
-    - name: Reload systemd daemon
-      systemd:
-        daemon_reload: true
+    # ── Deploy App ────────────────────────────────────────────────────────────
+    - name: Pull latest Docker image
+      command: docker pull {{ docker_image }}
 
-    - name: Enable and start todo-app service
+    - name: Create todo-app systemd service
+      copy:
+        dest: /etc/systemd/system/todo-app.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Todo App (Docker)
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Restart=always
+          RestartSec=5
+          EnvironmentFile=/etc/todo-app/app.env
+          ExecStartPre=-/usr/bin/docker stop todo-app
+          ExecStartPre=-/usr/bin/docker rm todo-app
+          ExecStartPre=/usr/bin/docker pull {{ docker_image }}
+          ExecStart=/usr/bin/docker run --rm \
+            --name todo-app \
+            -p {{ app_port }}:{{ app_port }} \
+            --env-file /etc/todo-app/app.env \
+            --log-driver=journald \
+            {{ docker_image }}
+          ExecStop=/usr/bin/docker stop -t 10 todo-app
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd and start todo-app service
       systemd:
         name: todo-app
+        daemon_reload: true
         enabled: true
         state: started

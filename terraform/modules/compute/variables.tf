@@ -38,7 +38,7 @@ variable "desired_capacity" {
   type = number
 }
 
-variable "db_host" {
+variable "db_endpoint" {
   type = string
 }
 
@@ -58,22 +58,6 @@ variable "db_password" {
 variable "app_secret_key" {
   type      = string
   sensitive = true
-}
-
-variable "google_client_id" {
-  type    = string
-  default = ""
-}
-
-variable "google_client_secret" {
-  type      = string
-  default   = ""
-  sensitive = true
-}
-
-variable "google_redirect_uri" {
-  type    = string
-  default = ""
 }
 
 variable "docker_image_uri" {
@@ -97,6 +81,11 @@ variable "ssh_public_key" {
   description = "SSH public key for EC2 instances"
   type        = string
   default     = ""
+}
+
+variable "repo_url" {
+  description = "Git repository URL to clone for Ansible playbook"
+  type        = string
 }
 
 variable "tags" {

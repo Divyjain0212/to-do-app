@@ -1,180 +1,50 @@
+@Library('Shared') _
 pipeline {
-  agent { label "vinod" }
+  agent any
 
   environment {
     APP_DIR = 'app'
-    IMAGE_NAME = 'todo-app'
-    IMAGE_TAG = "${BUILD_NUMBER}"
-    CONFIG_S3_PREFIX = "runtime/build-${BUILD_NUMBER}"
-    AWS_REGION = 'ap-south-1'
+    IMAGE_NAME = 'todoapp'
+    IMAGE_TAG = "latest"
+    DOCKER_HUB_USER = 'divyj0212'
   }
 
   stages {
-    stage('Build & Push Docker Image') {
-      steps {
-        script {
-          withCredentials([usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN')]) {
-            sh '''
-              cd ${APP_DIR}
-              docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-              
-              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-              echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USER" --password-stdin
-              docker tag ${IMAGE_NAME}:${IMAGE_TAG} "$FULL_IMAGE_URI"
-              docker push "$FULL_IMAGE_URI"
-              echo "Image pushed: $FULL_IMAGE_URI"
-            '''
-          }
+    stage('Testing'){
+      steps{
+        script{
+          sh '''
+          echo "testing the application"
+          cd ${APP_DIR}
+          pytest tests/test_health.py
+          '''
         }
       }
     }
 
-    stage('Upload Config to S3') {
+    stage('Build Docker Image') {
       steps {
         script {
-          withCredentials([usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-            sh '''
-              set -e
-              export AWS_DEFAULT_REGION=$AWS_REGION
-      
-              cd terraform
-              terraform init -reconfigure -input=false
-              terraform apply -auto-approve -target=module.s3 -var-file=environments/development.tfvars
-              CONFIG_BUCKET=$(terraform output -raw assets_bucket_name)
-              export DB_HOST=$(terraform output -raw rds_endpoint)
-
-              if [ -z "$CONFIG_BUCKET" ] || [ "$CONFIG_BUCKET" = "null" ]; then
-                echo "ERROR: assets bucket output is empty"
-                exit 1
-              fi
-              cd ..
-              python3 - <<'PY'
-import ast
-import os
-import secrets
-from pathlib import Path
-
-tfvars_path = Path("terraform/environments/development.tfvars")
-tfvars_values = {}
-
-for raw_line in tfvars_path.read_text().splitlines():
-    line = raw_line.strip()
-    if not line or line.startswith("#") or "=" not in line:
-        continue
-    key, value = line.split("=", 1)
-    key = key.strip()
-    value = value.strip()
-    try:
-        tfvars_values[key] = ast.literal_eval(value)
-    except Exception:
-        tfvars_values[key] = value.strip('"')
-
-env_values = {
-    "DB_HOST": os.environ["DB_HOST"],
-    "DB_NAME": str(tfvars_values.get("db_name", "todo_dev")),
-    "DB_USER": str(tfvars_values.get("db_username", "todoadmin")),
-    "DB_PASSWORD": str(tfvars_values.get("db_password", "")),
-    "DB_PORT": "3306",
-    "APP_PORT": "8000",
-    "SECRET_KEY": str(os.environ.get("APP_SECRET_KEY") or tfvars_values.get("app_secret_key") or secrets.token_hex(32)),
-    "GOOGLE_CLIENT_ID": str(tfvars_values.get("google_client_id", "")),
-    "GOOGLE_CLIENT_SECRET": str(tfvars_values.get("google_client_secret", "")),
-    "GOOGLE_REDIRECT_URI": str(tfvars_values.get("google_redirect_uri", "")),
-}
-
-lines = [f"{key}={value}" for key, value in env_values.items()]
-newline = chr(10)
-Path("app/.env").write_text(newline.join(lines) + newline)
-Path("app/.env").chmod(0o600)
-PY
-
-              aws s3 cp app/.env "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/.env"
-
-              aws s3 cp ansible/playbooks/site.yml "s3://${CONFIG_BUCKET}/${CONFIG_S3_PREFIX}/site.yml"
-            '''
-          }
+          docker_build("${IMAGE_NAME}","${IMAGE_TAG}","${DOCKER_HUB_USER}")
         }
       }
     }
 
-    stage('Deploy with Terraform') {
-      steps {
-        script {
-          withCredentials([
-            usernamePassword(credentialsId: 'dockerHubCred', usernameVariable: 'DOCKER_HUB_USER', passwordVariable: 'DOCKER_HUB_TOKEN'),
-            usernamePassword(credentialsId: 'awsCred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
-          ]) {
-            sh '''
-              set -e
-              export AWS_DEFAULT_REGION=$AWS_REGION
-              
-              FULL_IMAGE_URI="$DOCKER_HUB_USER/${IMAGE_NAME}:${IMAGE_TAG}"
-              echo "Deploying image: $FULL_IMAGE_URI"
-              
-              cd terraform
-              terraform init -reconfigure -input=false
-              terraform validate
-              
-              BLUE_TARGET_GROUP=$(terraform output -raw blue_target_group_arn 2>/dev/null || echo "")
-              GREEN_TARGET_GROUP=$(terraform output -raw green_target_group_arn 2>/dev/null || echo "")
+    stage('Security Scan'){
+      steps{
+        script{
+          sh "trivy image ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+      }
+    }
 
-              # Blue-green is only possible when Terraform exposes two distinct target groups.
-              if [ -n "$BLUE_TARGET_GROUP" ] && [ -n "$GREEN_TARGET_GROUP" ] && [ "$BLUE_TARGET_GROUP" != "$GREEN_TARGET_GROUP" ]; then
-                CURRENT_ENV=$(terraform output -raw active_environment 2>/dev/null || echo "blue")
-                if [ "$CURRENT_ENV" = "blue" ]; then
-                  DEPLOY_ENV="green"
-                  NEW_TARGET_GROUP="$GREEN_TARGET_GROUP"
-                else
-                  DEPLOY_ENV="blue"
-                  NEW_TARGET_GROUP="$BLUE_TARGET_GROUP"
-                fi
-
-                echo "Blue-green topology detected"
-                echo "Current environment: $CURRENT_ENV"
-                echo "Deploying to: $DEPLOY_ENV"
-
-                terraform apply -auto-approve \
-                  -var="docker_image_uri=$FULL_IMAGE_URI" \
-                  -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
-                  -var="active_environment=$DEPLOY_ENV" \
-                  -var-file=environments/development.tfvars
-
-                echo "Waiting for instances to be healthy..."
-                sleep 30
-
-                ALB_LISTENER_ARN=$(terraform output -raw alb_listener_arn 2>/dev/null || echo "")
-                if [ -z "$ALB_LISTENER_ARN" ]; then
-                  echo "ERROR: Could not retrieve ALB listener ARN"
-                  exit 1
-                fi
-
-                aws elbv2 modify-listener \
-                  --listener-arn "$ALB_LISTENER_ARN" \
-                  --default-actions Type=forward,TargetGroupArn="$NEW_TARGET_GROUP"
-
-                echo "Blue-green deployment successful"
-                echo "Active environment switched to: $DEPLOY_ENV"
-              else
-                echo "Single target group topology detected; using rolling deployment"
-                terraform apply -auto-approve \
-                  -var="docker_image_uri=$FULL_IMAGE_URI" \
-                  -var="config_s3_prefix=${CONFIG_S3_PREFIX}" \
-                  -var-file=environments/development.tfvars
-                echo "Rolling deployment successful"
-              fi
-            '''
-          }
+    stage('Push Docker Image to Docker Hub'){
+      steps{
+        script{
+          docker_push("${IMAGE_NAME}","latest","${DOCKER_HUB_USER}")
         }
       }
     }
   }
-
-  post {
-    failure {
-      echo 'Deployment failed'
-    }
-    success {
-      echo 'Deployment successful'
-    }
-  }
 }
+

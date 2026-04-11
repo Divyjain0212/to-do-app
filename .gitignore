@@ -5,6 +5,8 @@ __pycache__/
 venv/
 .env
 app/.env
+app/.env.local
+app/.env.production
 
 # Terraform
 *.tfstate
@@ -12,6 +14,7 @@ app/.env
 .terraform/
 .terraform.lock.hcl
 crash.log
+terraform/linux-key.pem*
 
 # Ansible
 *.retry
@@ -24,3 +27,9 @@ Thumbs.db
 # Build artifacts
 coverage.xml
 .pytest_cache/
+
+# Terraform environments
+terraform/environments/*.tfvars
+
+# Script
+script.sh

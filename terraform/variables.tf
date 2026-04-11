@@ -4,12 +4,6 @@ variable "aws_region" {
   default     = "ap-south-1"
 }
 
-variable "aws_profile" {
-  description = "AWS shared config profile used by Terraform"
-  type        = string
-  default     = ""
-}
-
 variable "project_name" {
   description = "Project identifier used for naming"
   type        = string
@@ -128,25 +122,6 @@ variable "app_secret_key" {
   type        = string
   default     = "change-me-in-production"
   sensitive   = true
-}
-
-variable "google_client_id" {
-  description = "Google OAuth client ID"
-  type        = string
-  default     = ""
-}
-
-variable "google_client_secret" {
-  description = "Google OAuth client secret"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "google_redirect_uri" {
-  description = "Google OAuth redirect URI. If empty, defaults to ALB callback URL."
-  type        = string
-  default     = ""
 }
 
 variable "common_tags" {
