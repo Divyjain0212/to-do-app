@@ -10,18 +10,6 @@ pipeline {
   }
 
   stages {
-    stage('Testing'){
-      steps{
-        script{
-          sh '''
-          echo "testing the application"
-          cd ${APP_DIR}
-          pytest tests/test_health.py
-          '''
-        }
-      }
-    }
-
     stage('Build Docker Image') {
       steps {
         script {

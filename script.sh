@@ -80,3 +80,25 @@ sudo apt update
 
 sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
 sudo usermod -aG docker $USER && newgrp docker
+
+# Add jenkins user to docker group so Jenkins can run docker commands
+sudo usermod -aG docker jenkins
+sudo systemctl restart jenkins
+
+# Install Python, pip and pytest for running tests in Jenkins
+sudo apt install -y python3 python3-pip 
+
+# Install app dependencies globally so Jenkins can run pytest
+sudo pip3 install --break-system-packages \
+  pytest \
+  pytest-cov \
+  flask \
+  pymysql \
+  python-dotenv \
+  python-json-logger \
+  cryptography \
+  werkzeug
+
+echo "✅ Jenkins server setup complete"
+echo "Access Jenkins at: http://$(curl -s ifconfig.me):8080"
+echo "Initial admin password: $(sudo cat /var/lib/jenkins/secrets/initialAdminPassword)"
