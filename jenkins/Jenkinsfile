@@ -13,7 +13,10 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          sh "cd ${APP_DIR}"
+          sh '''
+          cd ${APP_DIR}
+          pwd
+          '''
           docker_build("${IMAGE_NAME}","${IMAGE_TAG}","${DOCKER_HUB_USER}")
         }
       }
